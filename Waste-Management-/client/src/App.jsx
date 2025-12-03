@@ -26,7 +26,7 @@ function App() {
         </p>
       </div>
       <p className="read-the-docs">
-        Click yukta
+        Click yukta jubkjkm
         
       </p>
     </>
