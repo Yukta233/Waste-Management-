@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { FaUser, FaEnvelope, FaLock, FaPhone, FaMapMarkerAlt, FaHome, FaImage, FaList, FaRupeeSign, FaCalendarAlt, FaTruck, FaCog, FaUserTag } from 'react-icons/fa';
-
+import { Link } from 'react-router-dom';
 const userTypes = ['Admin', 'Composting Experts', 'Waste Management Service Providers', 'Regular Users'];
 
-export default function CreateUserAccount({ onSignIn }) {
+export default function CreateUserAccount() {
     const [userType, setUserType] = useState('Regular Users');
     const [formData, setFormData] = useState({});
     const [error, setError] = useState('');
@@ -125,8 +125,13 @@ export default function CreateUserAccount({ onSignIn }) {
                 </form>
 
                 <div className="mt-10 border-t pt-5 text-center">
-                    <p className="text-gray-500">Already have an account? <button onClick={onSignIn} className="text-gray-700 font-semibold hover:underline hover:text-gray-900">Sign in</button></p>
-                </div>
+    <p className="text-gray-500">
+        Already have an account?{" "}
+        <Link to="/login" className="text-gray-700 font-semibold hover:underline hover:text-gray-900">
+            Sign in
+        </Link>
+    </p>
+</div>
             </div>
         </div>
     );

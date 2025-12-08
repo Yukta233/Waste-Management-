@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from 'react-router-dom';
  function AboutUs() {
   return (
     <div className="bg-gray-50 text-gray-800 leading-relaxed">

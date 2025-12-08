@@ -75,7 +75,7 @@ export default function HowItWorksModal() {
           scale-100 animate-[fadeIn_0.4s_ease-out]
         "
       >
-        <h2 className="text-4xl font-bold text-green-700 mb-6">
+        <h2 className="text-4xl font-bold text-black mb-6">
           How It Works
         </h2>
 
@@ -128,7 +128,7 @@ export default function HowItWorksModal() {
             }
             className="
               p-3 w-12 h-12 flex items-center justify-center
-              border border-green-700 rounded-full
+              border border-white rounded-full text-white
               hover:bg-green-700 hover:text-white transition-all
             "
           >
@@ -140,7 +140,7 @@ export default function HowItWorksModal() {
             }
             className="
               p-3 w-12 h-12 flex items-center justify-center
-              border border-green-700 rounded-full
+              border border-white rounded-full text-white
               hover:bg-green-700 hover:text-white transition-all
             "
           >

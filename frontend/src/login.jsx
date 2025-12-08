@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { FaLeaf, FaEnvelope, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaLeaf, FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowLeft } from 'react-icons/fa';
+import { Link } from 'react-router-dom'; // ✅ Import Link
 
-export default function LoginPage({ onCreateAccount }) {
+export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [role, setRole] = useState('');
@@ -10,7 +11,6 @@ export default function LoginPage({ onCreateAccount }) {
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    
     function handleSubmit(e) {
         e.preventDefault();
         setError('');
@@ -28,7 +28,15 @@ export default function LoginPage({ onCreateAccount }) {
     }
 
     return (
-        <div className="min-h-screen bg-white flex items-center justify-center p-4">
+        <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 relative">
+
+            {/* Back to Home Button */}
+            <div className="absolute top-4 left-4">
+                <Link to="/" className="flex items-center gap-2 text-green-600 font-semibold hover:underline">
+                    <FaArrowLeft /> Back to Home
+                </Link>
+            </div>
+
             <div className="w-full max-w-xl bg-white rounded-2xl shadow-xl ring-1 ring-green-50 border border-green-100 overflow-hidden animate-modalIn">
                 <div className="p-6 sm:p-8">
 
@@ -43,6 +51,7 @@ export default function LoginPage({ onCreateAccount }) {
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
+                        {/* Email Field */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
                             <label className="text-lg font-bold text-gray-700 sm:text-left">Email</label>
                             <div className="sm:col-span-2 relative">
@@ -62,6 +71,7 @@ export default function LoginPage({ onCreateAccount }) {
                             </div>
                         </div>
 
+                        {/* Password Field */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
                             <label className="text-lg font-bold text-gray-700 sm:text-left">Password</label>
                             <div className="sm:col-span-2 relative">
@@ -90,6 +100,7 @@ export default function LoginPage({ onCreateAccount }) {
                             </div>
                         </div>
 
+                        {/* Role Selection */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
                             <label className="text-lg font-bold text-gray-700 sm:text-left mt-2">Select Role</label>
                             <div className="sm:col-span-2">
@@ -111,6 +122,7 @@ export default function LoginPage({ onCreateAccount }) {
                             </div>
                         </div>
 
+                        {/* Remember Me & Forgot Password */}
                         <div className="flex items-center justify-between">
                             <label className="inline-flex items-center gap-2 text-lg font-bold text-gray-600">
                                 <input
@@ -128,6 +140,7 @@ export default function LoginPage({ onCreateAccount }) {
 
                         {error && <div className="text-sm text-red-600 mt-1" role="alert" aria-live="assertive">{error}</div>}
 
+                        {/* Submit Button */}
                         <div>
                             <button
                                 type="submit"
@@ -145,8 +158,14 @@ export default function LoginPage({ onCreateAccount }) {
                         </div>
                     </form>
 
+                    {/* Create Account Link */}
                     <div className="mt-6 border-t border-green-100 pt-4 text-center">
-                        <p className="text-sm text-gray-500"><span className="font-bold text-gray-700">New here?</span> <button onClick={onCreateAccount} className="text-green-600 font-semibold hover:underline">Create an account</button></p>
+                        <p className="text-sm text-gray-500">
+                            <span className="font-bold text-gray-700">New here?</span>{" "}
+                            <Link to="/signup" className="text-green-600 font-semibold hover:underline">
+                                Create an account
+                            </Link>
+                        </p>
                     </div>
                 </div>
             </div>

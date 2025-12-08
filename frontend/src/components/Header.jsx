@@ -1,10 +1,10 @@
 import React from "react";
 import { FaUser } from "react-icons/fa";
+import { Link } from "react-router-dom"; // <-- import Link
 
 export default function Header() {
   return (
     <header className="w-full flex justify-center mt-4">
-      {/* MAIN CONTAINER */}
       <div className="w-[95%] bg-white rounded-3xl py-4 px-8 flex items-center justify-between">
 
         {/* LOGO */}
@@ -33,10 +33,13 @@ export default function Header() {
         </nav>
 
         {/* LOGIN BUTTON */}
-        <button className="flex items-center space-x-2 px-6 py-2 rounded-full border border-green-600 bg-white text-green-600 font-semibold hover:bg-green-50 transition">
+        <Link
+          to="/login" // <-- route to login page
+          className="flex items-center space-x-2 px-6 py-2 rounded-full border border-green-600 bg-white text-green-600 font-semibold hover:bg-green-50 transition"
+        >
           <FaUser className="text-lg text-green-600" />
           <span>Login</span>
-        </button>
+        </Link>
 
       </div>
     </header>
