@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FaLeaf, FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowLeft } from 'react-icons/fa';
-import { Link } from 'react-router-dom'; // ✅ Import Link
+import { Link, useNavigate } from 'react-router-dom'; // ✅ Import Link and useNavigate
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -11,17 +11,78 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    function handleSubmit(e) {
+    const navigate = useNavigate();
+
+    // Map UI role labels to backend role values
+    const mapRoleToBackend = (r) => {
+        switch (r) {
+            case 'Admin':
+                return 'admin';
+            case 'Composting Experts':
+                return 'expert';
+            case 'Waste Management Service Providers':
+                return 'provider';
+            case 'Regular Users':
+                return 'user';
+            default:
+                return '';
+        }
+    };
+
+    async function handleSubmit(e) {
         e.preventDefault();
         setError('');
         if (!email) return setError('Please enter an email.');
         if (!email.includes('@')) return setError('Email must contain @ symbol.');
         if (!password) return setError('Please enter a password.');
         if (!role) return setError('Please select a role.');
+
+        const backendRole = mapRoleToBackend(role);
+        if (!backendRole) return setError('Invalid role selection.');
+
         setIsSubmitting(true);
         try {
-            console.log({ email, role, remember });
-            alert(`Logged in as ${email} (${role})`);
+            // Determine backend base URL
+            const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+
+            const res = await fetch(`${API_BASE}/auth/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include', // include cookies set by server
+                body: JSON.stringify({ email, password }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const msg = data?.message || data?.error || 'Login failed';
+                throw new Error(msg);
+            }
+
+            // Persist tokens/user minimally if provided
+            if (data?.data?.accessToken) {
+                if (remember) {
+                    localStorage.setItem('accessToken', data.data.accessToken);
+                    localStorage.setItem('refreshToken', data.data.refreshToken || '');
+                } else {
+                    sessionStorage.setItem('accessToken', data.data.accessToken);
+                    sessionStorage.setItem('refreshToken', data.data.refreshToken || '');
+                }
+            }
+            if (data?.data?.user) {
+                const userStr = JSON.stringify(data.data.user);
+                if (remember) localStorage.setItem('user', userStr);
+                else sessionStorage.setItem('user', userStr);
+            }
+
+            // Navigate to dashboard based on role
+            if (backendRole === 'admin') navigate('/admin');
+            else if (backendRole === 'expert') navigate('/expert');
+            else if (backendRole === 'provider') navigate('/provider');
+            else navigate('/');
+        } catch (err) {
+            setError(err.message || 'Login failed');
         } finally {
             setIsSubmitting(false);
         }
