@@ -29,6 +29,12 @@ export default function LoginPage() {
         }
     };
 
+    const handleGoogleSignin = async () => {
+        // Placeholder: integrate with your Google OAuth flow here
+        // For now, just a stub to show UI behavior
+        alert('Google sign-in coming soon');
+    };
+
     async function handleSubmit(e) {
         e.preventDefault();
         setError('');
@@ -106,15 +112,15 @@ export default function LoginPage() {
                             <FaLeaf className="h-7 w-7 sm:h-8 sm:w-8 text-green-600" />
                         </div>
                         <div>
-                            <h1 className="text-3xl sm:text-4xl font-bold text-gray-800">Sign in to WasteCare</h1>
-                            <p className="text-xs sm:text-sm text-gray-500 mt-1">Select your role and access your dashboard.</p>
+                            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Sign in to WasteCare</h1>
+                            <p className="text-xs sm:text-xs text-gray-500 mt-1">Select your role and access your dashboard.</p>
                         </div>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {/* Email Field */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-                            <label className="text-lg font-bold text-gray-700 sm:text-left">Email</label>
+                            <label className="text-base font-semibold text-gray-700 sm:text-left">Email</label>
                             <div className="sm:col-span-2 relative">
                                 <FaEnvelope className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
                                 <input
@@ -125,7 +131,7 @@ export default function LoginPage() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     disabled={isSubmitting}
-                                    className="mt-0 block w-full rounded-lg border border-green-100 bg-white text-gray-900 placeholder-gray-400 shadow-sm focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 p-3 pl-10 text-lg disabled:opacity-60"
+                                    className="mt-0 block w-full rounded-lg border border-green-100 bg-white text-gray-900 placeholder-gray-400 shadow-sm focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 p-2.5 pl-10 text-base disabled:opacity-60"
                                     placeholder="you@example.com"
                                     required
                                 />
@@ -134,7 +140,7 @@ export default function LoginPage() {
 
                         {/* Password Field */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-                            <label className="text-lg font-bold text-gray-700 sm:text-left">Password</label>
+                            <label className="text-base font-semibold text-gray-700 sm:text-left">Password</label>
                             <div className="sm:col-span-2 relative">
                                 <FaLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
                                 <input
@@ -145,7 +151,7 @@ export default function LoginPage() {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     disabled={isSubmitting}
-                                    className="mt-0 block w-full rounded-lg border border-green-100 bg-white text-gray-900 placeholder-gray-400 shadow-sm focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 p-3 pl-10 pr-12 text-lg disabled:opacity-60"
+                                    className="mt-0 block w-full rounded-lg border border-green-100 bg-white text-gray-900 placeholder-gray-400 shadow-sm focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 p-2.5 pl-10 pr-12 text-base disabled:opacity-60"
                                     placeholder="Enter your password"
                                     required
                                 />
@@ -163,7 +169,7 @@ export default function LoginPage() {
 
                         {/* Role Selection */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
-                            <label className="text-lg font-bold text-gray-700 sm:text-left mt-2">Select Role</label>
+                            <label className="text-base font-semibold text-gray-700 sm:text-left mt-2">Select Role</label>
                             <div className="sm:col-span-2">
                                 <select
                                     id="role"
@@ -172,7 +178,7 @@ export default function LoginPage() {
                                     onChange={(e) => setRole(e.target.value)}
                                     disabled={isSubmitting}
                                     required
-                                    className="mt-0 block w-full rounded-lg border border-green-100 bg-white text-gray-900 placeholder-gray-400 shadow-sm focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 p-3 text-lg disabled:opacity-60"
+                                    className="mt-0 block w-full rounded-lg border border-green-100 bg-white text-gray-900 placeholder-gray-400 shadow-sm focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 p-2.5 text-base disabled:opacity-60"
                                 >
                                     <option value="" disabled>Select your role…</option>
                                     <option value="Admin">Admin</option>
@@ -185,7 +191,7 @@ export default function LoginPage() {
 
                         {/* Remember Me & Forgot Password */}
                         <div className="flex items-center justify-between">
-                            <label className="inline-flex items-center gap-2 text-lg font-bold text-gray-600">
+                            <label className="inline-flex items-center gap-2 text-base font-semibold text-gray-600">
                                 <input
                                     type="checkbox"
                                     checked={remember}
@@ -196,7 +202,7 @@ export default function LoginPage() {
                                 Remember me
                             </label>
 
-                            <button type="button" disabled={isSubmitting} className="text-sm text-green-600 hover:underline disabled:opacity-60">Forgot password?</button>
+                            <button type="button" disabled={isSubmitting} className="text-sm text-green-600 hover:underline disabled:opacity-60 focus:outline-none focus:ring-0">Forgot password?</button>
                         </div>
 
                         {error && <div className="text-sm text-red-600 mt-1" role="alert" aria-live="assertive">{error}</div>}
@@ -206,7 +212,7 @@ export default function LoginPage() {
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 text-white px-5 py-3 text-base sm:text-lg font-semibold shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 text-white px-5 py-2.5 text-sm sm:text-base font-semibold shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {isSubmitting && (
                                     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -215,6 +221,24 @@ export default function LoginPage() {
                                     </svg>
                                 )}
                                 {isSubmitting ? 'Signing in...' : 'Sign in'}
+                            </button>
+                        </div>
+
+                        {/* Divider and Google Sign-In */}
+                        <div className="mt-4">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="flex-1 h-px bg-green-100"></div>
+                                <span className="text-xs text-gray-400">or</span>
+                                <div className="flex-1 h-px bg-green-100"></div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleGoogleSignin}
+                                disabled={isSubmitting}
+                                className="w-full inline-flex items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white text-gray-700 px-5 py-2.5 text-sm sm:text-base font-semibold hover:bg-gray-50 focus:outline-none focus:ring-0 disabled:opacity-60"
+                            >
+                                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-5 w-5" />
+                                Sign in with Google
                             </button>
                         </div>
                     </form>

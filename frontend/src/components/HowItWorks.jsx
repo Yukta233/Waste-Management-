@@ -128,8 +128,8 @@ export default function HowItWorksModal() {
             }
             className="
               p-3 w-12 h-12 flex items-center justify-center
-              border border-white rounded-full text-white
-              hover:bg-green-700 hover:text-white transition-all
+              border border-white rounded-full text-black
+              hover:bg-green-700 hover:text-black transition-all
             "
           >
             ❮
@@ -140,8 +140,8 @@ export default function HowItWorksModal() {
             }
             className="
               p-3 w-12 h-12 flex items-center justify-center
-              border border-white rounded-full text-white
-              hover:bg-green-700 hover:text-white transition-all
+              border border-white rounded-full text-black
+              hover:bg-green-700 hover:text-black transition-all
             "
           >
             ❯

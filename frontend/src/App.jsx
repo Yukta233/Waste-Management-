@@ -7,6 +7,7 @@ import LoginPage from "./login"; // Import your Login page
 import CreateUserAccount from "./signup"
 import AboutUs from "./aboutus";
 import ContactUs from "./ContactUs";
+import ServicesPage from "./ServiceListing";
 export default function App() {
   return (
     <Router>
@@ -121,7 +122,9 @@ export default function App() {
         <Route path="/aboutus" element={<AboutUs />} />
         <Route path="/ContactUs" element={<ContactUs />} />
         {/* <Route path="/marketplace" element={<MarketplacePage />} /> */}
-        {/* <Route path="/services" element={<ServicesPage />} /> */}
+        <Route path="/ServiceListing" element={<ServicesPage />} />
+        <Route path="/services" element={<ServicesPage />} />
+
       </Routes>
     </Router>
   );

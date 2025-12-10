@@ -107,12 +107,12 @@ export default function CreateUserAccount() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-white p-8">
             <div className="w-full max-w-3xl bg-white rounded-3xl shadow-xl p-10 border border-gray-100 ring-1 ring-gray-100">
-                <h1 className="text-4xl font-extrabold text-green-600 mb-10 text-center">Create Your WasteCare Account</h1>
+                <h1 className="text-3xl font-extrabold text-green-600 mb-8 text-center">Create Your WasteCare Account</h1>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center mb-6">
-                    <label className="text-gray-700 font-bold sm:text-left">Select User Type</label>
+                    <label className="text-gray-700 font-semibold sm:text-left text-sm">Select User Type</label>
                     <div className="sm:col-span-2 relative">
-                        <FaUserTag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
-                        <select value={userType} onChange={(e) => setUserType(e.target.value)} className="w-full p-3 pl-10 border border-gray-200 rounded-lg bg-white text-gray-900 text-lg focus:border-gray-500 focus:ring focus:ring-gray-200 transition">
+                        <FaUserTag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                        <select value={userType} onChange={(e) => setUserType(e.target.value)} className="w-full p-2 pl-9 border border-gray-200 rounded-lg bg-white text-gray-900 text-base focus:border-gray-500 focus:ring focus:ring-gray-200 transition">
                             {userTypes.map(type => <option key={type} value={type}>{type}</option>)}
                         </select>
                     </div>
@@ -120,12 +120,12 @@ export default function CreateUserAccount() {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     {renderFields()}
-                    {error && <div className="text-red-600 font-semibold text-md">{error}</div>}
-                    <button type="submit" className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition">Create Account</button>
+                    {error && <div className="text-red-600 font-semibold text-sm">{error}</div>}
+                    <button type="submit" className="w-full bg-green-600 text-white py-2.5 rounded-lg font-semibold hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition">Create Account</button>
                 </form>
 
                 <div className="mt-10 border-t pt-5 text-center">
-    <p className="text-gray-500">
+    <p className="text-gray-500 text-sm">
         Already have an account?{" "}
         <Link to="/login" className="text-gray-700 font-semibold hover:underline hover:text-gray-900">
             Sign in
@@ -140,13 +140,13 @@ export default function CreateUserAccount() {
 function DropdownField({ label, name, value, onChange, options = [] }) {
     return (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-            <label className="text-gray-700 font-bold sm:text-left">{label}</label>
+            <label className="text-gray-700 font-semibold sm:text-left text-sm">{label}</label>
             <div className="sm:col-span-2 relative">
                 <select
                     name={name}
                     value={value}
                     onChange={onChange}
-                    className="w-full p-3 border border-gray-200 rounded-lg bg-white text-gray-900 focus:border-gray-500 focus:ring focus:ring-gray-200 text-lg"
+                    className="w-full p-2 border border-gray-200 rounded-lg bg-white text-gray-900 focus:border-gray-500 focus:ring focus:ring-gray-200 text-base"
                 >
                     <option value="" disabled>Select an option</option>
                     {options.map(opt => (
@@ -174,15 +174,15 @@ function AnimatedInput({ label, name, type = 'text', placeholder = '', onChange 
 
     return (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-            <label className="text-gray-700 font-bold sm:text-left">{label}</label>
+            <label className="text-gray-700 font-semibold sm:text-left text-sm">{label}</label>
             <div className="sm:col-span-2 relative">
-                {Icon && <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />}
+                {Icon && <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />}
                 <input
                     type={type}
                     name={name}
                     placeholder={ph}
                     onChange={onChange}
-                    className={`w-full p-3 ${Icon ? 'pl-10' : ''} border border-gray-200 rounded-lg bg-white text-gray-900 focus:border-gray-500 focus:ring focus:ring-gray-200 text-lg placeholder-gray-400 transition`}
+                    className={`w-full p-2.5 ${Icon ? 'pl-9' : ''} border border-gray-200 rounded-lg bg-white text-gray-900 focus:border-gray-500 focus:ring focus:ring-gray-200 text-base placeholder-gray-400 transition`}
                 />
             </div>
         </div>
