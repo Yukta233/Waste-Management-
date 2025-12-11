@@ -12,6 +12,7 @@ import AdminDashboard from "./dashboards/AdminDashboard";
 import ExpertDashboard from "./dashboards/ExpertDashboard";
 import ProviderDashboard from "./dashboards/ProviderDashboard";
 import UserDashboard from "./dashboards/UserDashboard";
+import BlogPage from "./Blog";
 export default function App() {
   return (
     <Router>
@@ -134,6 +135,7 @@ export default function App() {
         <Route path="/expert" element={<ExpertDashboard />} />
         <Route path="/provider" element={<ProviderDashboard />} />
         <Route path="/dashboard" element={<UserDashboard />} />
+        <Route path="/blog" element={<BlogPage />} />
 
       </Routes>
     </Router>

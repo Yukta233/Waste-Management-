@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { FaFacebookF, FaTwitter, FaLinkedinIn, FaInstagram } from "react-icons/fa";
 
+
 const Footer = () => {
   return (
     <footer className="bg-green-700 text-white pt-12 pb-8">
@@ -35,6 +36,9 @@ const Footer = () => {
                 </li>
                 <li>
                   <Link to="/ContactUs  " className="hover:underline">Contact</Link>
+                </li>
+                <li>
+                  <Link to="/blog  " className="hover:underline">Blog</Link>
                 </li>
               </ul>
             </div>
