@@ -7,13 +7,28 @@ export default function CreateUserAccount() {
     const [userType, setUserType] = useState('Regular Users');
     const [formData, setFormData] = useState({});
     const [error, setError] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
     };
 
-    const handleSubmit = (e) => {
+    const mapUserTypeToRole = (t) => {
+        switch (t) {
+            case 'Admin':
+                return 'admin';
+            case 'Composting Experts':
+                return 'expert';
+            case 'Waste Management Service Providers':
+                return 'provider';
+            default:
+                return 'user';
+        }
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         if (!formData.fullName) return setError('Full Name is required');
@@ -21,8 +36,40 @@ export default function CreateUserAccount() {
         if (!formData.password) return setError('Password is required');
         if (userType === 'Admin' && !formData.region) return setError('Region is required for Admin');
         if (userType === 'Composting Experts' && !formData.expertise) return setError('Area of Expertise is required for Composting Experts');
-        console.log('Account Data:', formData, 'UserType:', userType);
-        alert(`Account created for ${formData.fullName} as ${userType}`);
+
+        const role = mapUserTypeToRole(userType);
+        const payload = {
+            fullName: formData.fullName,
+            email: formData.email,
+            password: formData.password,
+            role,
+            // Optional fields if present
+            phoneNumber: formData.phone || undefined,
+            expertise: formData.expertise || undefined,
+            address: formData.address ? { line1: formData.address } : undefined,
+            region: formData.region || undefined,
+        };
+
+        setSubmitting(true);
+        try {
+            const res = await fetch(`${API_BASE}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data?.message || 'Registration failed');
+            }
+            // On success, optionally auto-login or redirect to login
+            alert('Account created successfully. Please sign in.');
+            window.location.href = '/login';
+        } catch (err) {
+            setError(err.message || 'Registration failed');
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const renderFields = () => {
@@ -121,7 +168,9 @@ export default function CreateUserAccount() {
                 <form onSubmit={handleSubmit} className="space-y-5">
                     {renderFields()}
                     {error && <div className="text-red-600 font-semibold text-sm">{error}</div>}
-                    <button type="submit" className="w-full bg-green-600 text-white py-2.5 rounded-lg font-semibold hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition">Create Account</button>
+                    <button type="submit" disabled={submitting} className="w-full bg-green-600 text-white py-2.5 rounded-lg font-semibold hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition disabled:opacity-60 disabled:cursor-not-allowed">
+                        {submitting ? 'Creating Account...' : 'Create Account'}
+                    </button>
                 </form>
 
                 <div className="mt-10 border-t pt-5 text-center">

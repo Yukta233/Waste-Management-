@@ -8,6 +8,10 @@ import CreateUserAccount from "./signup"
 import AboutUs from "./aboutus";
 import ContactUs from "./ContactUs";
 import ServicesPage from "./ServiceListing";
+import AdminDashboard from "./dashboards/AdminDashboard";
+import ExpertDashboard from "./dashboards/ExpertDashboard";
+import ProviderDashboard from "./dashboards/ProviderDashboard";
+import UserDashboard from "./dashboards/UserDashboard";
 export default function App() {
   return (
     <Router>
@@ -124,6 +128,12 @@ export default function App() {
         {/* <Route path="/marketplace" element={<MarketplacePage />} /> */}
         <Route path="/ServiceListing" element={<ServicesPage />} />
         <Route path="/services" element={<ServicesPage />} />
+
+        {/* DASHBOARDS */}
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/expert" element={<ExpertDashboard />} />
+        <Route path="/provider" element={<ProviderDashboard />} />
+        <Route path="/dashboard" element={<UserDashboard />} />
 
       </Routes>
     </Router>
