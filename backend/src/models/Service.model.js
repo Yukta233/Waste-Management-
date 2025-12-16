@@ -29,9 +29,12 @@ const serviceSchema = new Schema(
             required: true,
             enum: [
                 'home-setup',        // Home compost setup
-                'waste-collection',  // Kitchen waste collection
+                'kitchen-compost',   // Kitchen waste composting
+                'garden-compost',    // Garden composting
+                'community-compost', // Society/community composting
                 'compost-product',   // Buy organic compost
-                'workshop-training', // Garden composting workshop
+                'workshop-training', // Workshops / training
+                'waste-collection',  // Legacy/other collection types
                 'consultation',      // Expert consultation
                 'maintenance',       // Compost maintenance
                 'equipment-rental',  // Equipment rental
@@ -85,7 +88,7 @@ const serviceSchema = new Schema(
         }],
         availability: {
             type: String,
-            enum: ['weekdays', 'weekends', 'anytime', 'specific'],
+            enum: ['weekdays', 'mon-fri', 'weekends', 'anytime', 'specific', 'custom'],
             default: 'anytime'
         },
         availabilityDetails: {
@@ -109,8 +112,7 @@ const serviceSchema = new Schema(
         
         // Images
         images: [{
-            type: String, // Cloudinary URLs
-            required: [true, "At least one image is required"]
+            type: String // Cloudinary URLs
         }],
         
         // Service Specifications (Based on category)

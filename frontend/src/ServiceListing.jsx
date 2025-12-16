@@ -5,6 +5,7 @@ import { FaChevronDown } from "react-icons/fa";
 import Header from "./components/Header";
 export default function ServicesPage() {
   const [services, setServices] = useState([]);
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1";
 
   // STATIC DEMO DATA
   const staticServices = [
@@ -349,14 +350,44 @@ export default function ServicesPage() {
   const navigate = useNavigate();
   const heading = subcategory || `${domain} Services`;
 
+  const mapFrontToBackendCategory = (sub) => {
+    if (!sub) return "";
+    const s = String(sub).toLowerCase();
+    if (s.includes("home compost")) return "home-setup";
+    if (s.includes("kitchen waste")) return "kitchen-compost";
+    if (s.includes("garden")) return "garden-compost";
+    if (s.includes("society") || s.includes("community")) return "community-compost";
+    if (s.includes("workshop")) return "workshop-training";
+    if (s.includes("selling organic compost") || s.includes("buy compost") || s.includes("sell compost")) return "compost-product";
+    return "";
+  };
+
   const fetchServices = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/services", {
-        params: { search, location, type, priceMin, priceMax, domain, subcategory },
-      });
+      const params = {
+        status: 'active',
+      };
+      if (priceMin) params.minPrice = priceMin;
+      if (priceMax) params.maxPrice = priceMax;
+      if (location) params.city = location;
+      const mappedCat = mapFrontToBackendCategory(subcategory || type);
+      if (mappedCat) params.category = mappedCat;
 
-      if (!res.data.services || res.data.services.length === 0) {
-        // Use static fallback: prefer subcategory catalog if available, else domain defaults
+      const res = await axios.get(`${API_BASE}/services`, { params });
+      const payload = res.data?.data?.services || res.data?.services || [];
+
+      const normalized = payload.map(svc => ({
+        _id: svc._id,
+        title: svc.title,
+        description: svc.description,
+        price: svc.price,
+        location: svc.location?.city || svc.city || '',
+        photos: (Array.isArray(svc.images) && svc.images.length ? svc.images : ["https://via.placeholder.com/300"]).slice(0,1),
+        provider: { name: svc.provider?.fullName || svc.provider?.companyName || 'Service Expert' },
+        domain: 'Residential',
+      }));
+
+      if (!normalized.length) {
         const byDomain = staticServices.filter((s) => s.domain === domain);
         let fallback = byDomain;
         if (subcategory) {
@@ -365,7 +396,7 @@ export default function ServicesPage() {
         }
         setServices(fallback);
       } else {
-        setServices(res.data.services);
+        setServices(normalized);
       }
     } catch {
       const byDomain = staticServices.filter((s) => s.domain === domain);

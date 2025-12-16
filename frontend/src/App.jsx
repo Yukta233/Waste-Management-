@@ -1,22 +1,20 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-
 import Header from "./components/Header";
 import HowItWorks from "./components/HowItWorks";
 import Footer from "./components/Footer";
 import Testimonials from "./components/Testimonials";
 import TextAnimate from "./components/TextAnimate";
-
 import LoginPage from "./login";
 import CreateUserAccount from "./signup";
 import AboutUs from "./aboutus";
 import ContactUs from "./ContactUs";
 import ServicesPage from "./ServiceListing";
-
 import AdminDashboard from "./dashboards/AdminDashboard";
 import ExpertDashboard from "./dashboards/ExpertDashboard";
 import ProviderDashboard from "./dashboards/ProviderDashboard";
 import UserDashboard from "./dashboards/UserDashboard";
+import BookingPage from "./pages/BookingPage";
 import BlogPage from "./Blog";
 
 export default function App() {
@@ -120,6 +118,7 @@ export default function App() {
         <Route path="/expert" element={<ExpertDashboard />} />
         <Route path="/provider" element={<ProviderDashboard />} />
         <Route path="/dashboard" element={<UserDashboard />} />
+        <Route path="/book/:serviceId" element={<BookingPage />} />
         <Route path="/blog" element={<BlogPage />} />
       </Routes>
     </Router>

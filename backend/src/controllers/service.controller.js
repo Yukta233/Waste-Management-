@@ -5,6 +5,21 @@ import { Service } from "../models/Service.model.js";
 import { User } from "../models/User.model.js";
 import { uploadImage } from "../config/cloudinary.js";
 
+// Category normalization helpers to align frontend and backend values
+const FrontToModelCategory = {
+  home_setup: 'home-setup',
+  kitchen_compost: 'kitchen-compost',
+  garden_compost: 'garden-compost',
+  community_compost: 'community-compost',
+  workshop: 'workshop-training',
+  sell_compost: 'compost-product',
+};
+const mapCategory = (input) => {
+  if (!input) return input;
+  const key = String(input).toLowerCase();
+  return FrontToModelCategory[key] || key;
+};
+
 const createService = asyncHandler(async (req, res) => {
     // Check if user is authorized to create services
     const user = await User.findById(req.user._id);
@@ -28,11 +43,13 @@ const createService = asyncHandler(async (req, res) => {
         availability = 'anytime',
         features,
         specifications,
-        tags
+        tags,
+        images: bodyImages
     } = req.body;
+    const normalizedCategory = mapCategory(category);
 
     // Validate required fields
-    if (!title || !description || !category || !price || !city || !state || !pincode) {
+    if (!title || !description || !normalizedCategory || price === undefined || price === null || isNaN(Number(price)) || !city || !state || !pincode) {
         throw new ApiError(400, "Please provide all required fields");
     }
 
@@ -45,10 +62,14 @@ const createService = asyncHandler(async (req, res) => {
         'consultation',
         'maintenance',
         'equipment-rental',
-        'others'
+        'others',
+        // Extended to support mapped frontend categories
+        'kitchen-compost',
+        'garden-compost',
+        'community-compost'
     ];
     
-    if (!validCategories.includes(category)) {
+    if (!validCategories.includes(normalizedCategory)) {
         throw new ApiError(400, "Invalid service category");
     }
 
@@ -63,8 +84,8 @@ const createService = asyncHandler(async (req, res) => {
                 throw new ApiError(400, "Error uploading images");
             }
         }
-    } else {
-        throw new ApiError(400, "At least one service image is required");
+    } else if (Array.isArray(bodyImages) && bodyImages.length > 0) {
+        images = bodyImages;
     }
 
     // Parse specifications
@@ -104,11 +125,12 @@ const createService = asyncHandler(async (req, res) => {
     }
 
     // Create service
+    const initialStatus = (process.env.NODE_ENV !== 'production' || user.isAdmin()) ? 'active' : 'pending';
     const service = await Service.create({
         title,
         description,
         provider: req.user._id,
-        category,
+        category: normalizedCategory,
         price: parseFloat(price),
         priceType,
         currency,
@@ -124,7 +146,8 @@ const createService = asyncHandler(async (req, res) => {
         images,
         specifications: parsedSpecifications,
         tags: parsedTags,
-        status: user.isAdmin() ? 'active' : 'pending'
+        status: initialStatus,
+        isAvailable: initialStatus === 'active'
     });
 
     // Add service to user's servicesOffered
@@ -171,7 +194,7 @@ const getAllServices = asyncHandler(async (req, res) => {
         filter.status = status;
     }
     
-    if (category) filter.category = category;
+    if (category) filter.category = mapCategory(category);
     if (city) filter['location.city'] = new RegExp(city, 'i');
     if (provider) filter.provider = provider;
     
@@ -221,15 +244,10 @@ const getAllServices = asyncHandler(async (req, res) => {
 const getServiceById = asyncHandler(async (req, res) => {
     const { serviceId } = req.params;
 
+    // Populate provider details. 'reviews' is not part of Service schema
+    // so avoid populating it here to prevent strict populate errors.
     const service = await Service.findById(serviceId)
-        .populate('provider', 'fullName profilePhoto bio expertise averageRating totalRatings')
-        .populate({
-            path: 'reviews',
-            populate: {
-                path: 'user',
-                select: 'fullName profilePhoto'
-            }
-        });
+        .populate('provider', 'fullName profilePhoto bio expertise averageRating totalRatings');
 
     if (!service) {
         throw new ApiError(404, "Service not found");
@@ -278,9 +296,12 @@ const updateService = asyncHandler(async (req, res) => {
         updateData.images = [...service.images, ...newImages];
     }
 
-    // Convert price to number if present
-    if (updateData.price) {
+    // Convert price/category if present
+    if (updateData.price !== undefined) {
         updateData.price = parseFloat(updateData.price);
+    }
+    if (updateData.category) {
+        updateData.category = mapCategory(updateData.category);
     }
 
     // Update service
@@ -334,9 +355,12 @@ const getServicesByProvider = asyncHandler(async (req, res) => {
     const { status } = req.query;
 
     const filter = { provider: providerId };
+
+    const isAdmin = !!req.user && typeof req.user.isAdmin === 'function' ? req.user.isAdmin() : false;
+    const isSelf = !!req.user && req.user._id && req.user._id.toString() === providerId;
     
-    // Non-admin users can only see active services
-    if (!req.user?.isAdmin() && req.user._id.toString() !== providerId) {
+    // For public or other users: only show active & available
+    if (!isAdmin && !isSelf) {
         filter.status = 'active';
         filter.isAvailable = true;
     } else if (status) {
