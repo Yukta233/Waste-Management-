@@ -9,6 +9,7 @@ import serviceRoutes from './src/routes/service.routes.js';
 import bookingRoutes from './src/routes/booking.routes.js';
 import adminRoutes from './src/routes/admin.routes.js';
 import sellWasteRoutes from './src/routes/sellWaste.routes.js';
+import notificationRoutes from './src/routes/notification.routes.js';
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use("/api/v1/services", serviceRoutes);
 app.use("/api/v1/bookings", bookingRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use('/api/v1/sell-waste', sellWasteRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
 // ============ HEALTH CHECK ============
 app.get('/health', (req, res) => {

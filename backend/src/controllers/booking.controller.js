@@ -99,6 +99,23 @@ const createBooking = asyncHandler(async (req, res) => {
         $push: { bookingsMade: booking._id }
     });
 
+        // Notify provider about new booking
+        try {
+            const providerUser = await User.findById(service.provider);
+            if (providerUser) {
+                const note = {
+                    title: 'New booking request',
+                    message: `${req.user.fullName || req.user.email || 'A user'} requested a booking for ${service.title}`,
+                    type: 'booking',
+                    data: { bookingId: booking._id, serviceId: service._id },
+                    createdAt: new Date()
+                };
+                await User.findByIdAndUpdate(service.provider, { $push: { notifications: note } });
+            }
+        } catch (e) {
+            console.error('Failed to notify provider about new booking', e.message);
+        }
+
     // Populate booking details for response
     const populatedBooking = await Booking.findById(booking._id)
         .populate('service', 'title description price category')
@@ -262,6 +279,18 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
     await booking.save();
 
     // Notify user about status change (you can implement email/notification here)
+        try {
+            const note = {
+                title: `Booking ${status}`,
+                message: `Your booking ${booking.bookingId} was ${status} by the provider`,
+                type: 'booking',
+                data: { bookingId: booking._id },
+                createdAt: new Date()
+            };
+            await User.findByIdAndUpdate(booking.user, { $push: { notifications: note } });
+        } catch (e) {
+            console.error('Failed to notify user about booking status change', e.message);
+        }
 
     return res
         .status(200)

@@ -70,6 +70,10 @@ export default function ProviderDashboard() {
 
   // services
   const [services, setServices] = useState([]);
+  const [providerBookings, setProviderBookings] = useState([]);
+  const [sellRequests, setSellRequests] = useState([]);
+  const [assignedSellPickups, setAssignedSellPickups] = useState([]);
+  const [selectedBooking, setSelectedBooking] = useState(null);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [showServiceDetails, setShowServiceDetails] = useState(false);
@@ -106,8 +110,54 @@ export default function ProviderDashboard() {
         console.error('Failed to load provider services on mount', err);
       }
     })();
+    // load provider bookings
+    (async () => {
+      try {
+        if (token) {
+          const resp = await api('/bookings/provider/bookings');
+          const arr = resp?.data?.bookings || resp?.bookings || resp?.data || resp || [];
+          if (mounted) setProviderBookings(Array.isArray(arr) ? arr : []);
+        }
+      } catch (err) { console.error('Failed to load provider bookings', err); }
+    })();
     return () => { mounted = false; };
   }, [user, token]);
+
+  async function refreshProviderBookings() {
+    try {
+      const resp = await api('/bookings/provider/bookings');
+      const arr = resp?.data?.bookings || resp?.bookings || resp?.data || resp || [];
+      setProviderBookings(Array.isArray(arr) ? arr : []);
+    } catch (err) { console.error('refreshProviderBookings', err); }
+  }
+
+  // Sell requests (open listings) for providers
+  async function loadSellRequests() {
+    try {
+      const resp = await api('/sell-waste/open');
+      const arr = resp?.data || resp || [];
+      setSellRequests(Array.isArray(arr) ? arr : []);
+    } catch (err) { console.error('Failed to load sell requests', err); }
+  }
+
+  async function loadAssignedSellPickups() {
+    try {
+      const resp = await api('/sell-waste/provider/assigned');
+      const arr = resp?.data || resp || [];
+      setAssignedSellPickups(Array.isArray(arr) ? arr : []);
+    } catch (err) { console.error('Failed to load assigned sell pickups', err); }
+  }
+
+  async function makeOffer(listingId) {
+    try {
+      const price = prompt('Enter price per kg (numeric)');
+      if (!price) return;
+      const msg = prompt('Optional message to the user');
+      await api(`/sell-waste/${listingId}/offer`, { method: 'POST', body: { pricePerKg: Number(price), message: msg } });
+      alert('Offer sent');
+      loadSellRequests();
+    } catch (err) { console.error(err); alert('Failed to send offer'); }
+  }
 
   // simple api helper
   async function api(path, { method = 'GET', body, token: tk } = {}) {
@@ -433,7 +483,8 @@ export default function ProviderDashboard() {
               <SidebarLink open={sidebarOpen} label="Dashboard Home" onClick={() => setActiveTab('overview')} active={activeTab === 'overview'} icon={<span>🏠</span>} />
               <SidebarLink open={sidebarOpen} label="Company Profile" onClick={() => setActiveTab('profile')} active={activeTab === 'profile'} icon={<span>🏢</span>} />
               <SidebarLink open={sidebarOpen} label="Waste Services" onClick={() => setActiveTab('services')} active={activeTab === 'services'} icon={<span>♻️</span>} />
-              <SidebarLink open={sidebarOpen} label="Pickup Schedule" onClick={() => setActiveTab('pickup')} active={activeTab === 'pickup'} icon={<span>📅</span>} />
+              <SidebarLink open={sidebarOpen} label="Pickup Schedule" onClick={() => { setActiveTab('pickup'); loadAssignedSellPickups(); }} active={activeTab === 'pickup'} icon={<span>📅</span>} />
+              <SidebarLink open={sidebarOpen} label="Sell Requests" onClick={() => { setActiveTab('sell-requests'); loadSellRequests(); }} active={activeTab === 'sell-requests'} icon={<span>🗑️</span>} />
               <SidebarLink open={sidebarOpen} label="Contracts & Subs" onClick={() => setActiveTab('contracts')} active={activeTab === 'contracts'} icon={<span>📜</span>} />
               <SidebarLink open={sidebarOpen} label="Analytics & Reports" onClick={() => setActiveTab('analytics')} active={activeTab === 'analytics'} icon={<span>📊</span>} />
               <SidebarLink open={sidebarOpen} label="Earnings & Invoices" onClick={() => setActiveTab('earnings')} active={activeTab === 'earnings'} icon={<span>💰</span>} />
@@ -690,17 +741,109 @@ export default function ProviderDashboard() {
           )}
 
           {activeTab === 'pickup' && (
-            <Section title="Pickup Schedule & Operations">
-              <div className="text-sm text-gray-600">Daily pickup lists, assign staff/vehicles and update status here.</div>
-              <div className="mt-3">
-                <table className="min-w-full text-sm">
-                  <thead><tr className="text-left text-gray-500"><th className="py-2">Service</th><th className="py-2">Area</th><th className="py-2">Date</th><th className="py-2">Status</th></tr></thead>
-                  <tbody>
-                    {services.slice(0,10).map(s => (
-                      <tr key={s._id} className="border-t"><td className="py-2">{s.title}</td><td className="py-2">{s.serviceArea}</td><td className="py-2">{s.nextPickup || '-'}</td><td className="py-2">Pending</td></tr>
+            <>
+              <Section title="Pickup Requests & Bookings">
+                <div className="text-sm text-gray-600">Incoming booking requests from users. Accept or reject bookings here.</div>
+                <div className="mt-3">
+                  {providerBookings.length === 0 && <div className="text-sm text-gray-500">No booking requests.</div>}
+                  <div className="space-y-3">
+                    {providerBookings.map(b => (
+                      <div key={b._id} className="p-3 border rounded flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-black">{b.service?.title || b.service}</div>
+                          <div className="text-xs text-gray-500">From: {b.user?.fullName || b.user?.email} • {new Date(b.bookingDate).toLocaleString()}</div>
+                          <div className="text-sm text-gray-700">Qty/Req: {b.requirements?.quantity || '-' } • Instructions: {b.specialInstructions || '-'}</div>
+                          <div className="text-xs text-gray-500">Status: {b.status}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          {b.status === 'pending' && (
+                            <>
+                              <button className="px-3 py-1 rounded bg-emerald-600 text-white" onClick={async () => {
+                                if (!confirm('Accept this booking?')) return;
+                                try {
+                                  await api(`/bookings/${b._id}/status`, { method: 'PATCH', body: { status: 'confirmed' } });
+                                  alert('Booking accepted');
+                                  refreshProviderBookings();
+                                } catch (err) { console.error(err); alert('Failed to accept'); }
+                              }}>Accept</button>
+                              <button className="px-3 py-1 rounded border text-red-600" onClick={async () => {
+                                if (!confirm('Reject this booking?')) return;
+                                try {
+                                  await api(`/bookings/${b._id}/status`, { method: 'PATCH', body: { status: 'rejected' } });
+                                  alert('Booking rejected');
+                                  refreshProviderBookings();
+                                } catch (err) { console.error(err); alert('Failed to reject'); }
+                              }}>Reject</button>
+                            </>
+                          )}
+                          <button className="px-3 py-1 rounded border text-gray-900" onClick={() => setSelectedBooking(b)}>Details</button>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="Sell Waste Pickups">
+                <div className="text-sm text-gray-600">Accepted and scheduled sell-waste pickups assigned to you.</div>
+                <div className="mt-3">
+                  {assignedSellPickups.length === 0 && <div className="text-sm text-gray-500">No assigned sell-waste pickups.</div>}
+                  <div className="space-y-3 mt-3">
+                    {assignedSellPickups.map(l => (
+                      <div key={l._id} className="p-3 border rounded flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-black">{String(l.wasteType).toUpperCase()} • {l.quantityKg} kg</div>
+                          <div className="text-xs text-gray-500">Customer: {l.user?.fullName || l.user?.email} • {new Date(l.createdAt).toLocaleString()}</div>
+                          <div className="text-sm text-gray-700">Address: {(l.address && (typeof l.address === 'string' ? l.address : (l.address.address || l.address.line1 || `${l.address.city || ''} ${l.address.pincode || ''}`))) || '-'}</div>
+                          <div className="text-xs text-gray-500">Status: {l.status}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          {l.status === 'accepted' && (
+                            <button className="px-3 py-1 rounded bg-emerald-600 text-white" onClick={async () => {
+                              try { await api(`/sell-waste/${l._id}/status`, { method: 'POST', body: { status: 'scheduled' } }); loadAssignedSellPickups(); alert('Marked scheduled'); } catch (e) { console.error(e); alert('Failed'); }
+                            }}>Mark Scheduled</button>
+                          )}
+                          {l.status === 'scheduled' && (
+                            <>
+                              <button className="px-3 py-1 rounded bg-emerald-600 text-white" onClick={async () => {
+                                try { await api(`/sell-waste/${l._id}/status`, { method: 'POST', body: { status: 'completed' } }); loadAssignedSellPickups(); alert('Marked completed'); } catch (e) { console.error(e); alert('Failed'); }
+                              }}>Mark Completed</button>
+                              <button className="px-3 py-1 rounded border text-red-600" onClick={async () => {
+                                if (!confirm('Cancel this pickup?')) return;
+                                try { await api(`/sell-waste/${l._id}/status`, { method: 'POST', body: { status: 'cancelled' } }); loadAssignedSellPickups(); alert('Cancelled'); } catch (e) { console.error(e); alert('Failed'); }
+                              }}>Cancel</button>
+                            </>
+                          )}
+                          <button className="px-3 py-1 rounded border" onClick={() => setSelectedBooking(l)}>Details</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Section>
+            </>
+          )}
+
+          {activeTab === 'sell-requests' && (
+            <Section title="Sell Waste Requests">
+              <div className="text-sm text-gray-600">Open sell requests from users. Make an offer to purchase their waste.</div>
+              <div className="mt-3">
+                {sellRequests.length === 0 && <div className="text-sm text-gray-500">No open sell requests.</div>}
+                <div className="space-y-3 mt-3">
+                  {sellRequests.map(l => (
+                    <div key={l._id} className="p-3 border rounded flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-black">{String(l.wasteType).toUpperCase()} • {l.quantityKg} kg</div>
+                        <div className="text-xs text-gray-500">{l.user?.fullName || l.user?.email} • {new Date(l.createdAt).toLocaleString()}</div>
+                        <div className="text-sm text-gray-700">Address: {(l.address && (typeof l.address === 'string' ? l.address : (l.address.address || l.address.line1 || `${l.address.city || ''} ${l.address.pincode || ''}`))) || '-'}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button className="px-3 py-1 rounded bg-emerald-600 text-white" onClick={() => makeOffer(l._id)}>Make Offer</button>
+                        <button className="px-3 py-1 rounded border" onClick={() => { setSelectedBooking(l); }}>Details</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </Section>
           )}
@@ -743,6 +886,71 @@ export default function ProviderDashboard() {
       )}
       {showServiceDetails && (
         <ServiceDetailsModal serviceId={serviceDetails?._id || serviceDetails?.id || serviceDetails} onClose={() => { setShowServiceDetails(false); setServiceDetails(null); }} />
+      )}
+      {selectedBooking && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" onClick={() => setSelectedBooking(null)}>
+          <div className="w-full max-w-3xl bg-white rounded-xl shadow-lg p-4 m-4" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-xl font-semibold text-black">Booking details</h3>
+                <div className="text-sm text-gray-500">{selectedBooking.service?.title || 'Service'}</div>
+              </div>
+              <div className="text-right">
+                <button className="text-gray-600" onClick={() => setSelectedBooking(null)}>✕</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <div className="text-sm text-gray-600">Customer</div>
+                <div className="font-medium text-gray-900">{selectedBooking.user?.fullName || selectedBooking.user?.email}</div>
+                <div className="text-sm text-gray-500">{selectedBooking.user?.phoneNumber || selectedBooking.user?.phone || ''}</div>
+
+                <div className="mt-3 text-sm text-gray-600">Pickup Address</div>
+                <div className="text-sm text-gray-800">{selectedBooking.address || (selectedBooking.location && (selectedBooking.location.address || `${selectedBooking.location.city || ''} ${selectedBooking.location.pincode || ''}`))}</div>
+
+                <div className="mt-3 text-sm text-gray-600">Schedule</div>
+                <div className="text-sm text-gray-800">{new Date(selectedBooking.bookingDate).toLocaleDateString()} • {selectedBooking.timeSlot?.start} - {selectedBooking.timeSlot?.end}</div>
+
+                <div className="mt-3 text-sm text-gray-600">Requirements</div>
+                <div className="text-sm text-gray-800">{selectedBooking.requirements?.quantity || selectedBooking.requirements?.wasteType || '-'}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-600">Special Instructions</div>
+                <div className="text-sm text-gray-800 p-3 bg-gray-50 rounded">{selectedBooking.specialInstructions || '-'}</div>
+
+                <div className="mt-3 text-sm text-gray-600">Contact Person</div>
+                <div className="text-sm text-gray-800">{selectedBooking.contactPerson?.name || '-'} • {selectedBooking.contactPerson?.phone || '-'}</div>
+
+                {selectedBooking.service?.images && selectedBooking.service.images.length > 0 && (
+                  <div className="mt-3">
+                    <div className="text-sm text-gray-600">Images</div>
+                    <div className="mt-2 flex gap-2 overflow-x-auto">
+                      {selectedBooking.service.images.map((img, i) => (
+                        <img key={i} src={img} alt="img" className="h-20 w-28 object-cover rounded" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              {selectedBooking.status === 'pending' && (
+                <>
+                  <button className="px-4 py-2 rounded border text-red-600" onClick={async () => {
+                    if (!confirm('Reject this booking?')) return;
+                    try { await api(`/bookings/${selectedBooking._id}/status`, { method: 'PATCH', body: { status: 'rejected' } }); alert('Rejected'); setSelectedBooking(null); refreshProviderBookings(); } catch (e) { console.error(e); alert('Failed'); }
+                  }}>Reject</button>
+                  <button className="px-4 py-2 rounded bg-emerald-600 text-white" onClick={async () => {
+                    if (!confirm('Accept this booking?')) return;
+                    try { await api(`/bookings/${selectedBooking._id}/status`, { method: 'PATCH', body: { status: 'confirmed' } }); alert('Accepted'); setSelectedBooking(null); refreshProviderBookings(); } catch (e) { console.error(e); alert('Failed'); }
+                  }}>Accept</button>
+                </>
+              )}
+              <button className="px-4 py-2 rounded border" onClick={() => setSelectedBooking(null)}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

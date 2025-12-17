@@ -101,6 +101,7 @@ export default function UserDashboard() {
       const resp = await api('/users/profile');
       const p = resp?.data || resp?.user || resp;
       setProfile(p);
+      // keep local profile; avoid overwriting top-level `user` here to prevent re-triggering effects
       setEditForm(p ? {
         fullName: p.fullName || '',
         phoneNumber: p.phoneNumber || p.phone || '',
@@ -127,7 +128,17 @@ export default function UserDashboard() {
     } catch (err) { console.error('loadNotifications', err); }
   }
 
-  useEffect(() => { if (user) { loadServices(); loadBookings(); loadProfile(); loadReviews(); loadNotifications(); } }, [user]);
+  // Load dashboard data once when token becomes available to avoid re-render loops
+  useEffect(() => {
+    if (token) {
+      loadServices();
+      loadBookings();
+      loadProfile();
+      loadReviews();
+      loadNotifications();
+    }
+  }, [token]);
+
 
   async function loadMySellListings() {
     try {
@@ -136,7 +147,7 @@ export default function UserDashboard() {
     } catch (err) { console.error('loadMySellListings', err); }
   }
 
-  useEffect(() => { if (user) loadMySellListings(); }, [user]);
+  useEffect(() => { if (token) loadMySellListings(); }, [token]);
 
     // react to navigation state (e.g., after creating a booking)
     const location = useLocation();
@@ -310,8 +321,10 @@ export default function UserDashboard() {
                           const resp = await api('/users/profile', { method: 'PUT', body: update });
                           const updated = resp?.data || resp;
                           setProfile(updated);
+                          // update local `user` state and storage so dashboard reflects changes for this user only
+                          try { setUser(updated); localStorage.setItem('user', JSON.stringify(updated)); } catch (e) {}
                           setEditingProfile(false);
-                          try { localStorage.setItem('user', JSON.stringify(updated)); } catch (e) {}
+                          
                         } catch (err) {
                           console.error('Failed to update profile', err);
                           alert('Failed to update profile');
@@ -499,9 +512,15 @@ export default function UserDashboard() {
                     if (sellForm.images && sellForm.images.length) {
                       for (let i = 0; i < sellForm.images.length; i++) fd.append('images', sellForm.images[i]);
                     }
-                    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
-                    const res = await fetch(base + '/sell-waste', { method: 'POST', body: fd, credentials: 'include' });
-                    if (!res.ok) throw new Error('Failed to create listing');
+                    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
+                    const headers = {};
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+                    const res = await fetch(base + '/sell-waste', { method: 'POST', body: fd, headers, credentials: 'include' });
+                    if (!res.ok) {
+                      let errText = 'Failed to create listing';
+                      try { const j = await res.json(); errText = j?.message || j?.error || JSON.stringify(j) || errText; } catch(e) {}
+                      throw new Error(errText);
+                    }
                     alert('Sell request created');
                     setSellForm({ wasteType: 'plastic', quantityKg: '', preferredPickupAt: '', address: '', images: [] });
                     loadMySellListings();
@@ -536,7 +555,7 @@ export default function UserDashboard() {
                   </div>
 
                   <label className="block"><span className="text-sm text-gray-700">Images (optional)</span>
-                    <input type="file" multiple accept="image/*" onChange={e => setSellForm(prev => ({ ...prev, images: Array.from(e.target.files || []) }))} className="mt-1 w-full" />
+                    <input type="file" multiple accept="image/*" onChange={e => setSellForm(prev => ({ ...prev, images: Array.from(e.target.files || []) }))} className="mt-1 w-full text-black" />
                   </label>
 
                   <div>

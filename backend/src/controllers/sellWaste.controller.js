@@ -14,9 +14,15 @@ export const createListing = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Quantity must be a positive number');
   }
 
-  const address = req.body.address ? (typeof req.body.address === 'string' ? JSON.parse(req.body.address || '{}') : req.body.address) : (user?.address || {});
+  let address = user?.address || {};
+  if (typeof req.body.address === 'string') {
+    try { address = JSON.parse(req.body.address || '{}'); } catch { address = { address: req.body.address }; }
+  } else if (req.body.address) {
+    address = req.body.address;
+  }
 
   const images = [];
+  // Multer .array('images') sets req.files to an array
   if (req.files && Array.isArray(req.files)) {
     for (const f of req.files) images.push(f.path || f.filename || f.location || '');
   }
@@ -57,7 +63,8 @@ export const providerOffer = asyncHandler(async (req, res) => {
   const listing = await SellWaste.findById(req.params.id);
   if (!listing) throw new ApiError(404, 'Listing not found');
   if (!provider.isProvider && !provider.isExpert && !provider.isAdmin) {
-    // allow middleware to protect, but extra check
+    // extra guard; main protection via middleware
+    throw new ApiError(403, 'Not authorized');
   }
   if (!pricePerKg || isNaN(Number(pricePerKg))) throw new ApiError(400, 'Invalid price');
 
@@ -89,16 +96,30 @@ export const acceptOffer = asyncHandler(async (req, res) => {
   res.json({ success: true, data: listing });
 });
 
+// Provider: list assigned sell-waste (accepted/scheduled/completed)
+export const providerAssigned = asyncHandler(async (req, res) => {
+  const providerId = req.user._id;
+  const statuses = (req.query.statuses ? String(req.query.statuses).split(',') : ['accepted','scheduled','completed']);
+  const listings = await SellWaste.find({ provider: providerId, status: { $in: statuses } })
+    .populate('user', 'fullName email phoneNumber')
+    .sort({ updatedAt: -1 });
+  res.json({ success: true, data: listings });
+});
+
 // Provider marks scheduled or completed
 export const updateStatus = asyncHandler(async (req, res) => {
   const provider = req.user;
   const { status } = req.body; // 'scheduled' or 'completed' or 'cancelled'
   const listing = await SellWaste.findById(req.params.id);
   if (!listing) throw new ApiError(404, 'Listing not found');
-  if (!String(listing.provider).startsWith(String(provider._id)) && String(listing.provider) !== String(provider._id)) {
-    // allow provider who accepted
+
+  // Only the assigned provider can change status
+  if (!listing.provider || String(listing.provider) !== String(provider._id)) {
+    throw new ApiError(403, 'Not authorized to update this listing');
   }
+
   if (!['scheduled','completed','cancelled'].includes(status)) throw new ApiError(400, 'Invalid status');
+
   listing.status = status;
   await listing.save();
   res.json({ success: true, data: listing });

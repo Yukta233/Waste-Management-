@@ -115,6 +115,16 @@ const userSchema = new Schema(
             type: Schema.Types.ObjectId,
             ref: "Review"
         }],
+
+        // Notifications for the user (in-app)
+        notifications: [{
+            title: String,
+            message: String,
+            type: String, // e.g., booking, system, offer
+            data: Schema.Types.Mixed,
+            read: { type: Boolean, default: false },
+            createdAt: { type: Date, default: Date.now }
+        }],
         
         // Ratings
         averageRating: {

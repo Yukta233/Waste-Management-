@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { FaUser } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
+import NotificationBell from "./NotificationBell";
 
 export default function Header() {
   const [openDropdown, setOpenDropdown] = useState(false);
@@ -126,6 +127,7 @@ export default function Header() {
         {/* AUTH AREA */}
         {currentUser ? (
           <div className="flex items-center gap-3" ref={userMenuRef}>
+            <NotificationBell token={localStorage.getItem('token') || localStorage.getItem('accessToken') || sessionStorage.getItem('token') || sessionStorage.getItem('accessToken')} />
             {/* User Menu */}
             <button
               onClick={() => setOpenUserMenu((v) => !v)}
