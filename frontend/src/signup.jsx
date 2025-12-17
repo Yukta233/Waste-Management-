@@ -8,7 +8,7 @@ export default function CreateUserAccount() {
     const [formData, setFormData] = useState({});
     const [error, setError] = useState('');
     const [submitting, setSubmitting] = useState(false);
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
 
     const handleChange = (e) => {
         const { name, value } = e.target;

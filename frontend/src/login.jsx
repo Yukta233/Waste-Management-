@@ -49,7 +49,7 @@ export default function LoginPage() {
         setIsSubmitting(true);
         try {
             // Determine backend base URL
-            const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+            const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
 
             const res = await fetch(`${API_BASE}/auth/login`, {
                 method: 'POST',

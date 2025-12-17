@@ -5,7 +5,7 @@ import { FaChevronDown } from "react-icons/fa";
 import Header from "./components/Header";
 export default function ServicesPage() {
   const [services, setServices] = useState([]);
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1";
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api/v1";
 
   // STATIC DEMO DATA
   const staticServices = [

@@ -31,7 +31,7 @@ export default function BookingPage() {
       if (!serviceId) return;
       setLoading(true);
       try {
-        const base =   import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+        const base =   import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
         const token = localStorage.getItem('token') || localStorage.getItem('accessToken') || sessionStorage.getItem('token') || sessionStorage.getItem('accessToken');
         const res = await fetch(`${base}/services/${serviceId}`, { headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, credentials: 'include' });
         if (!res.ok) throw new Error('Failed to fetch service');
@@ -137,7 +137,7 @@ export default function BookingPage() {
     if (!service) return alert('Service not loaded');
     setSubmitting(true);
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
       const token = localStorage.getItem('token') || localStorage.getItem('accessToken') || sessionStorage.getItem('token') || sessionStorage.getItem('accessToken');
 
       const [start, end] = form.timeSlot.split(' - ').map(s => s.trim());

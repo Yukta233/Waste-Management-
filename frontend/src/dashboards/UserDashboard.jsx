@@ -50,7 +50,7 @@ export default function UserDashboard() {
   }, []);
 
   async function api(path, { method = 'GET', body, tk } = {}) {
-    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
     const res = await fetch(`${base}${path}`, {
       method,
       headers: {
@@ -304,7 +304,7 @@ export default function UserDashboard() {
                   e.preventDefault();
                   const form = new FormData(e.target);
                   try {
-                    await fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1') + '/support', { method: 'POST', body: JSON.stringify({ subject: form.get('subject'), message: form.get('message') }), headers: { 'Content-Type': 'application/json' }, credentials: 'include' });
+                    await fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1') + '/support', { method: 'POST', body: JSON.stringify({ subject: form.get('subject'), message: form.get('message') }), headers: { 'Content-Type': 'application/json' }, credentials: 'include' });
                     alert('Support request sent');
                     e.target.reset();
                   } catch (err) { console.error(err); alert('Failed to send'); }

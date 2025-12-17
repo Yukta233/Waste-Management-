@@ -9,7 +9,7 @@ export default function Header() {
   const dropdownRef = useRef(null);
   const userMenuRef = useRef(null);
   const navigate = useNavigate();
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
 
   // Close dropdown when clicking outside
   useEffect(() => {

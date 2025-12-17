@@ -6,7 +6,7 @@ import { Sidebar, SidebarBody, SidebarLink } from '../components/sidebar';
 
 // Utility: simple fetch wrapper
 async function api(path, { method = 'GET', body, token } = {}) {
-  const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
   const res = await fetch(`${base}${path}`, {
     method,
     headers: {
