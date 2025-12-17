@@ -171,6 +171,14 @@ const serviceSchema = new Schema(
             type: Number,
             default: 0
         },
+        bookedBy: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+            default: null
+        },
+        bookedAt: {
+            type: Date
+        },
         isAvailable: {
             type: Boolean,
             default: true

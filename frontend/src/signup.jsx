@@ -11,7 +11,11 @@ export default function CreateUserAccount() {
     const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
 
     const handleChange = (e) => {
-        const { name, value } = e.target;
+        const { name, value, files, type } = e.target;
+        if (type === 'file') {
+            setFormData({ ...formData, [name]: files && files[0] ? files[0] : null });
+            return;
+        }
         setFormData({ ...formData, [name]: value });
     };
 
@@ -34,29 +38,31 @@ export default function CreateUserAccount() {
         if (!formData.fullName) return setError('Full Name is required');
         if (!formData.email || !formData.email.includes('@')) return setError('Valid Email is required');
         if (!formData.password) return setError('Password is required');
-        if (userType === 'Admin' && !formData.region) return setError('Region is required for Admin');
-        if (userType === 'Composting Experts' && !formData.expertise) return setError('Area of Expertise is required for Composting Experts');
+        if (userType === 'Admin' && !formData.address) return setError('Address is required for Admin');
+        // no longer require expertise; address required for Composting Experts
+        if (userType === 'Composting Experts' && !formData.address) return setError('Address is required for Composting Experts');
 
         const role = mapUserTypeToRole(userType);
-        const payload = {
-            fullName: formData.fullName,
-            email: formData.email,
-            password: formData.password,
-            role,
-            // Optional fields if present
-            phoneNumber: formData.phone || undefined,
-            expertise: formData.expertise || undefined,
-            address: formData.address ? { line1: formData.address } : undefined,
-            region: formData.region || undefined,
-        };
+        // Build multipart form data to include profile image if provided
+        const fd = new FormData();
+        fd.append('fullName', formData.fullName);
+        fd.append('email', formData.email);
+        fd.append('password', formData.password);
+        fd.append('role', role);
+        if (formData.phone) fd.append('phoneNumber', formData.phone);
+        // Admin no longer uses region; address is appended above when present
+        if (formData.vehicle) fd.append('vehicle', formData.vehicle);
+        if (formData.address) fd.append('address', typeof formData.address === 'string' ? formData.address : JSON.stringify(formData.address));
+        // Attach profile picture file if present
+        if (formData.profilePic) fd.append('profilePic', formData.profilePic);
 
         setSubmitting(true);
         try {
             const res = await fetch(`${API_BASE}/auth/register`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                // NOTE: let browser set Content-Type for multipart
                 credentials: 'include',
-                body: JSON.stringify(payload),
+                body: fd,
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -79,7 +85,8 @@ export default function CreateUserAccount() {
                     <AnimatedInput label="Name" name="fullName" onChange={handleChange} />
                     <AnimatedInput label="Email" name="email" type="email" onChange={handleChange} />
                     <AnimatedInput label="Password" name="password" type="password" onChange={handleChange} />
-                    <AnimatedInput label="Region" name="region" onChange={handleChange} />
+                    <AnimatedInput label="Address" name="address" onChange={handleChange} />
+                    <AnimatedInput label="Profile Picture" name="profilePic" type="file" onChange={handleChange} />
                 </>
             );
         }
@@ -90,19 +97,9 @@ export default function CreateUserAccount() {
                     <AnimatedInput label="Name" name="fullName" onChange={handleChange} />
                     <AnimatedInput label="Email" name="email" type="email" onChange={handleChange} />
                     <AnimatedInput label="Phone Number" name="phone" type="number" onChange={handleChange} />
-                    <DropdownField
-                        label="Area of Expertise"
-                        name="expertise"
-                        value={formData.expertise || ''}
-                        onChange={handleChange}
-                        options={[
-                            'Home Composting',
-                            'Community Composting',
-                            'Vermicomposting',
-                            'Aerobic Composting',
-                            'Garden/Leaf Composting',
-                        ]}
-                    />
+                    {/* Removed expertise dropdown per request; add address for experts */}
+                    <AnimatedInput label="Address" name="address" onChange={handleChange} />
+                    <AnimatedInput label="Profile Picture" name="profilePic" type="file" onChange={handleChange} />
                     <AnimatedInput label="Password" name="password" type="password" onChange={handleChange} />
                 </>
             );
@@ -115,7 +112,8 @@ export default function CreateUserAccount() {
                 <AnimatedInput label="Password" name="password" type="password" onChange={handleChange} />
                 <AnimatedInput label="Phone Number" name="phone" type="number" onChange={handleChange} />
                 <AnimatedInput label="Address" name="address" onChange={handleChange} />
-                                            </>
+                <AnimatedInput label="Profile Picture" name="profilePic" type="file" onChange={handleChange} />
+            </>
         );
 
         switch(userType){
@@ -123,19 +121,7 @@ export default function CreateUserAccount() {
                 return (
                     <>
                         {commonFields}
-                        <DropdownField
-                            label="Services Providing"
-                            name="services"
-                            value={formData.services || ''}
-                            onChange={handleChange}
-                            options={[
-                                'Waste Pickup',
-                                'Kitchen Waste Collection',
-                                'Recycling Service',
-                                'Bulk Waste Removal',
-                                'E-waste Collection',
-                            ]}
-                        />
+                        {/* Removed Services Providing list per request */}
                         <AnimatedInput label="Vehicle Details" name="vehicle" placeholder="Optional" onChange={handleChange} />
                     </>
                 );
@@ -143,7 +129,6 @@ export default function CreateUserAccount() {
                 return (
                     <>
                         {commonFields}
-                        <AnimatedInput label="Profile Picture" name="profilePic" type="file" onChange={handleChange} />
                     </>
                 );
             default:

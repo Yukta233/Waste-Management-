@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Header from '../components/Header';
 import { Sidebar, SidebarBody, SidebarLink } from '../components/sidebar';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 function StatCard({ title, value, icon }) {
   return (
@@ -41,6 +41,10 @@ export default function UserDashboard() {
   const [reviews, setReviews] = useState([]);
   const [profile, setProfile] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [sellForm, setSellForm] = useState({ wasteType: 'plastic', quantityKg: '', preferredPickupDate: '', preferredPickupTime: '', address: '', images: [] });
+  const [mySellListings, setMySellListings] = useState([]);
 
   useEffect(() => {
     const stored = localStorage.getItem('user') || sessionStorage.getItem('user');
@@ -87,15 +91,26 @@ export default function UserDashboard() {
 
   async function loadBookings() {
     try {
-      const resp = await api('/bookings');
+      const resp = await api('/bookings/my-bookings');
       setBookings(resp?.data?.bookings || resp?.bookings || resp || []);
     } catch (err) { console.error('loadBookings', err); }
   }
 
   async function loadProfile() {
     try {
-      const resp = await api('/users/me');
-      setProfile(resp?.data || resp?.user || resp);
+      const resp = await api('/users/profile');
+      const p = resp?.data || resp?.user || resp;
+      setProfile(p);
+      // keep local profile; avoid overwriting top-level `user` here to prevent re-triggering effects
+      setEditForm(p ? {
+        fullName: p.fullName || '',
+        phoneNumber: p.phoneNumber || p.phone || '',
+        bio: p.bio || '',
+        website: p.website || '',
+        addresses: Array.isArray(p.addresses) ? p.addresses.slice() : (p.address ? [p.address] : []),
+        expertise: Array.isArray(p.expertise) ? p.expertise.join(', ') : (p.expertise || ''),
+        serviceArea: Array.isArray(p.serviceArea) ? p.serviceArea.join(', ') : (p.serviceArea || '')
+      } : null);
     } catch (err) { console.error('loadProfile', err); }
   }
 
@@ -113,11 +128,40 @@ export default function UserDashboard() {
     } catch (err) { console.error('loadNotifications', err); }
   }
 
-  useEffect(() => { if (user) { loadServices(); loadBookings(); loadProfile(); loadReviews(); loadNotifications(); } }, [user]);
+  // Load dashboard data once when token becomes available to avoid re-render loops
+  useEffect(() => {
+    if (token) {
+      loadServices();
+      loadBookings();
+      loadProfile();
+      loadReviews();
+      loadNotifications();
+    }
+  }, [token]);
+
+
+  async function loadMySellListings() {
+    try {
+      const resp = await api('/sell-waste/my');
+      setMySellListings(resp?.data || resp || []);
+    } catch (err) { console.error('loadMySellListings', err); }
+  }
+
+  useEffect(() => { if (token) loadMySellListings(); }, [token]);
+
+    // react to navigation state (e.g., after creating a booking)
+    const location = useLocation();
+    useEffect(() => {
+      if (location?.state?.refreshBookings) {
+        loadBookings();
+        if (location.state.activeTab) setActiveTab(location.state.activeTab);
+        try { window.history.replaceState({}, document.title); } catch (e) {}
+      }
+    }, [location]);
 
   const stats = useMemo(() => ({
-    upcomingBookings: bookings.filter(b => b.status === 'upcoming').length,
-    pastBookings: bookings.filter(b => b.status === 'completed' || b.status === 'cancelled').length,
+    upcomingBookings: bookings.filter(b => ['pending', 'confirmed', 'scheduled', 'in_progress'].includes(b.status)).length,
+    pastBookings: bookings.filter(b => ['completed', 'cancelled', 'rejected', 'expired'].includes(b.status)).length,
     savedServices: services.length,
   }), [bookings, services]);
   const navigate = useNavigate();
@@ -128,8 +172,9 @@ export default function UserDashboard() {
       <div className="flex flex-1 w-full">
         <Sidebar open={sidebarOpen} setOpen={setSidebarOpen}>
           <SidebarBody>
-            <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2">
               <SidebarLink open={sidebarOpen} label="Browse" onClick={() => setActiveTab('browse')} active={activeTab === 'browse'} icon={<span>🔎</span>} />
+              <SidebarLink open={sidebarOpen} label="Sell Waste" onClick={() => setActiveTab('sell-waste')} active={activeTab === 'sell-waste'} icon={<span>🗑️</span>} />
               <SidebarLink open={sidebarOpen} label="Bookings" onClick={() => setActiveTab('bookings')} active={activeTab === 'bookings'} icon={<span>📅</span>} />
               <SidebarLink open={sidebarOpen} label="My Reviews" onClick={() => setActiveTab('reviews')} active={activeTab === 'reviews'} icon={<span>⭐</span>} />
               <SidebarLink open={sidebarOpen} label="Profile" onClick={() => setActiveTab('profile')} active={activeTab === 'profile'} icon={<span>👤</span>} />
@@ -218,12 +263,12 @@ export default function UserDashboard() {
                   {bookings.map(b => (
                     <div key={b._id || b.id} className="p-3 border rounded flex items-center justify-between">
                       <div>
-                        <div className="font-medium">{b.service?.title || b.title}</div>
+                        <div className="font-medium text-black">{b.service?.title || b.title}</div>
                         <div className="text-xs text-gray-500">{b.date ? new Date(b.date).toLocaleString() : (b.startAt || '')} • {b.status}</div>
                       </div>
                       <div className="flex gap-2">
                         {b.status === 'upcoming' && <button className="px-3 py-1 rounded border text-red-600" onClick={() => alert('Cancel booking')}>Cancel</button>}
-                        <button className="px-3 py-1 rounded border" onClick={() => alert('Open booking')}>Details</button>
+                        <button className="px-3 py-1 rounded border text-black" onClick={() => alert('Open booking')}>Details</button>
                       </div>
                     </div>
                   ))}
@@ -240,7 +285,7 @@ export default function UserDashboard() {
                 <div className="space-y-3">
                   {reviews.map(r => (
                     <div key={r._id || r.id} className="p-3 border rounded">
-                      <div className="font-medium">{r.serviceTitle || r.service?.title}</div>
+                      <div className="font-medium text-black">{r.serviceTitle || r.service?.title}</div>
                       <div className="text-xs text-gray-500">Rating: {r.rating} • {new Date(r.createdAt || r.date).toLocaleDateString()}</div>
                       <div className="mt-1 text-gray-700">{r.comment}</div>
                     </div>
@@ -254,23 +299,112 @@ export default function UserDashboard() {
             <div className="space-y-4">
               <h2 className="text-lg font-semibold text-gray-800">Profile & Addresses</h2>
               <div className="bg-white rounded-xl border p-4">
+                <div className="flex justify-end mb-3">
+                  {!editingProfile ? (
+                    <button className="px-3 py-1 rounded border text-black" onClick={() => setEditingProfile(true)}>Edit Profile</button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button className="px-3 py-1 rounded border text-black" onClick={() => { setEditingProfile(false); setEditForm(profile ? {
+                        fullName: profile.fullName || '', phoneNumber: profile.phoneNumber || profile.phone || '', bio: profile.bio || '', website: profile.website || '', addresses: Array.isArray(profile.addresses) ? profile.addresses.slice() : (profile.address ? [profile.address] : []), expertise: Array.isArray(profile.expertise) ? profile.expertise.join(', ') : (profile.expertise || ''), serviceArea: Array.isArray(profile.serviceArea) ? profile.serviceArea.join(', ') : (profile.serviceArea || '')
+                      } : null) }}>Cancel</button>
+                      <button className="px-3 py-1 rounded bg-emerald-600 text-white" onClick={async () => {
+                        try {
+                          const update = {
+                            fullName: editForm.fullName,
+                            phoneNumber: editForm.phoneNumber,
+                            bio: editForm.bio,
+                            website: editForm.website,
+                            address: editForm.addresses,
+                            expertise: editForm.expertise,
+                            serviceArea: editForm.serviceArea
+                          };
+                          const resp = await api('/users/profile', { method: 'PUT', body: update });
+                          const updated = resp?.data || resp;
+                          setProfile(updated);
+                          // update local `user` state and storage so dashboard reflects changes for this user only
+                          try { setUser(updated); localStorage.setItem('user', JSON.stringify(updated)); } catch (e) {}
+                          setEditingProfile(false);
+                          
+                        } catch (err) {
+                          console.error('Failed to update profile', err);
+                          alert('Failed to update profile');
+                        }
+                      }}>Save</button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-1">
                     <img src={profile?.profilePhoto || '/placeholder-avatar.png'} alt="profile" className="h-24 w-24 rounded-full object-cover mb-2" />
-                    <div className="font-medium">{profile?.fullName || user?.fullName}</div>
+                    <div className="font-medium text-black">{profile?.fullName || user?.fullName}</div>
                     <div className="text-sm text-gray-500">{profile?.email || user?.email}</div>
                   </div>
                   <div className="md:col-span-2">
-                    <div className="mb-2">
-                      <div className="text-sm text-gray-600">Contact</div>
-                      <div className="font-medium">{profile?.phone || '-'}</div>
-                    </div>
-                    <div className="mb-2">
-                      <div className="text-sm text-gray-600">Saved Addresses</div>
-                      {(profile?.addresses || []).length === 0 ? <div className="text-sm text-gray-500">No saved addresses.</div> : (
-                        <div className="space-y-2">{(profile.addresses || []).map((a, i) => <div key={i} className="p-2 border rounded">{a.label ? a.label + ': ' : ''}{a.address}</div>)}</div>
-                      )}
-                    </div>
+                    {!editingProfile && (
+                      <>
+                        <div className="mb-2">
+                          <div className="text-sm text-gray-600">Contact</div>
+                          <div className="font-medium text-gray-800">{profile?.phoneNumber || profile?.phone || '-'}</div>
+                        </div>
+                        <div className="mb-2">
+                          <div className="text-sm text-gray-600">Saved Addresses</div>
+                          {(profile?.addresses || []).length === 0 ? <div className="text-sm text-gray-500">No saved addresses.</div> : (
+                            <div className="space-y-2">{(profile.addresses || []).map((a, i) => <div key={i} className="p-2 border rounded">{a.label ? a.label + ': ' : ''}{a.address}</div>)}</div>
+                          )}
+                        </div>
+                        <div className="mb-2">
+                          <div className="text-sm text-gray-600">Bio</div>
+                          <div className="text-sm text-gray-700">{profile?.bio || '-'}</div>
+                        </div>
+                      </>
+                    )}
+
+                    {editingProfile && editForm && (
+                      <form onSubmit={e => e.preventDefault()} className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <label className="block"><span className="text-sm text-gray-700">Full name</span>
+                            <input value={editForm.fullName} onChange={e => setEditForm(prev => ({ ...prev, fullName: e.target.value }))} className="mt-1 w-full rounded border px-3 py-2 bg-white text-black placeholder-gray-600" />
+                          </label>
+                          <label className="block"><span className="text-sm text-gray-700">Phone</span>
+                            <input value={editForm.phoneNumber} onChange={e => setEditForm(prev => ({ ...prev, phoneNumber: e.target.value }))} className="mt-1 w-full rounded border px-3 py-2 bg-white text-black placeholder-gray-600" />
+                          </label>
+                        </div>
+
+                        <label className="block"><span className="text-sm text-gray-700">Website</span>
+                          <input value={editForm.website} onChange={e => setEditForm(prev => ({ ...prev, website: e.target.value }))} className="mt-1 w-full rounded border px-3 py-2 bg-white text-black placeholder-gray-600" />
+                        </label>
+
+                        <label className="block"><span className="text-sm text-gray-700">Bio</span>
+                          <textarea value={editForm.bio} onChange={e => setEditForm(prev => ({ ...prev, bio: e.target.value }))} className="mt-1 w-full rounded border px-3 py-2 h-24 bg-white text-black placeholder-gray-600" />
+                        </label>
+
+                        <div>
+                          <div className="text-sm text-gray-700 mb-2">Addresses</div>
+                          {(editForm.addresses || []).map((a, i) => (
+                            <div key={i} className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2 items-start">
+                              <input placeholder="Label (Home, Office)" value={a.label || ''} onChange={e => setEditForm(prev => { const arr = prev.addresses.slice(); arr[i] = { ...arr[i], label: e.target.value }; return { ...prev, addresses: arr }; })} className="rounded border px-3 py-2 bg-white text-black placeholder-gray-600" />
+                              <input placeholder="Address" value={a.address || ''} onChange={e => setEditForm(prev => { const arr = prev.addresses.slice(); arr[i] = { ...arr[i], address: e.target.value }; return { ...prev, addresses: arr }; })} className="rounded border px-3 py-2 md:col-span-1 bg-white text-black placeholder-gray-600" />
+                              <div className="flex gap-2">
+                                <button type="button" className="px-2 py-1 rounded border text-sm text-gray-800" onClick={() => setEditForm(prev => { const arr = prev.addresses.slice(); arr.splice(i,1); return { ...prev, addresses: arr }; })}>Remove</button>
+                              </div>
+                            </div>
+                          ))}
+                          <div>
+                            <button type="button" className="px-3 py-1 rounded border text-gray-800" onClick={() => setEditForm(prev => ({ ...prev, addresses: [...(prev.addresses||[]), { label: '', address: '' }] }))}>Add Address</button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <label className="block"><span className="text-sm text-gray-700">Expertise (comma separated)</span>
+                            <input value={editForm.expertise} onChange={e => setEditForm(prev => ({ ...prev, expertise: e.target.value }))} className="mt-1 w-full rounded border px-3 py-2 bg-white text-black placeholder-gray-600" />
+                          </label>
+                          <label className="block"><span className="text-sm text-gray-700">Service Area (comma separated)</span>
+                            <input value={editForm.serviceArea} onChange={e => setEditForm(prev => ({ ...prev, serviceArea: e.target.value }))} className="mt-1 w-full rounded border px-3 py-2 bg-white text-black placeholder-gray-600" />
+                          </label>
+                        </div>
+                      </form>
+                    )}
                   </div>
                 </div>
               </div>
@@ -354,6 +488,96 @@ export default function UserDashboard() {
                       <button className="px-3 py-2 rounded border" onClick={() => setSelectedService(null)}>Close</button>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'sell-waste' && (
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-gray-800">Sell Waste / Request Pickup</h2>
+              <div className="bg-white rounded-xl border p-4">
+                <form onSubmit={async e => {
+                  e.preventDefault();
+                  try {
+                    const fd = new FormData();
+                    fd.append('wasteType', sellForm.wasteType);
+                    fd.append('quantityKg', sellForm.quantityKg);
+                    fd.append('address', typeof sellForm.address === 'string' ? sellForm.address : JSON.stringify(sellForm.address));
+                    // combine date + time into ISO datetime if both provided
+                    if (sellForm.preferredPickupDate && sellForm.preferredPickupTime) {
+                      const dt = new Date(sellForm.preferredPickupDate + 'T' + sellForm.preferredPickupTime);
+                      if (!isNaN(dt.getTime())) fd.append('preferredPickupAt', dt.toISOString());
+                    }
+                    if (sellForm.images && sellForm.images.length) {
+                      for (let i = 0; i < sellForm.images.length; i++) fd.append('images', sellForm.images[i]);
+                    }
+                    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
+                    const headers = {};
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+                    const res = await fetch(base + '/sell-waste', { method: 'POST', body: fd, headers, credentials: 'include' });
+                    if (!res.ok) {
+                      let errText = 'Failed to create listing';
+                      try { const j = await res.json(); errText = j?.message || j?.error || JSON.stringify(j) || errText; } catch(e) {}
+                      throw new Error(errText);
+                    }
+                    alert('Sell request created');
+                    setSellForm({ wasteType: 'plastic', quantityKg: '', preferredPickupAt: '', address: '', images: [] });
+                    loadMySellListings();
+                  } catch (err) { console.error(err); alert('Failed to create listing'); }
+                }} className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <label className="block"><span className="text-sm text-gray-700">Waste Type</span>
+                      <select value={sellForm.wasteType} onChange={e => setSellForm(prev => ({ ...prev, wasteType: e.target.value }))} className="mt-1 w-full rounded border px-3 py-2 bg-white text-black">
+                        <option value="plastic">Plastic</option>
+                        <option value="paper">Paper</option>
+                        <option value="metal">Metal</option>
+                        <option value="e-waste">E-waste</option>
+                        <option value="glass">Glass</option>
+                      </select>
+                    </label>
+                    <label className="block"><span className="text-sm text-gray-700">Approx Quantity (kg)</span>
+                      <input value={sellForm.quantityKg} onChange={e => setSellForm(prev => ({ ...prev, quantityKg: e.target.value }))} type="number" min="0" step="0.1" className="mt-1 w-full rounded border px-3 py-2 bg-white text-black" />
+                    </label>
+                  </div>
+
+                  <label className="block"><span className="text-sm text-gray-700">Pickup Address</span>
+                    <input value={sellForm.address} onChange={e => setSellForm(prev => ({ ...prev, address: e.target.value }))} placeholder="Enter pickup address or select saved address" className="mt-1 w-full rounded border px-3 py-2 bg-white text-black" />
+                  </label>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <label className="block"><span className="text-sm text-gray-700">Preferred pickup date</span>
+                      <input value={sellForm.preferredPickupDate} onChange={e => setSellForm(prev => ({ ...prev, preferredPickupDate: e.target.value }))} type="date" className="mt-1 w-full rounded border px-3 py-2 bg-white text-black" />
+                    </label>
+                    <label className="block"><span className="text-sm text-gray-700">Preferred pickup time</span>
+                      <input value={sellForm.preferredPickupTime} onChange={e => setSellForm(prev => ({ ...prev, preferredPickupTime: e.target.value }))} type="time" className="mt-1 w-full rounded border px-3 py-2 bg-white text-black" />
+                    </label>
+                  </div>
+
+                  <label className="block"><span className="text-sm text-gray-700">Images (optional)</span>
+                    <input type="file" multiple accept="image/*" onChange={e => setSellForm(prev => ({ ...prev, images: Array.from(e.target.files || []) }))} className="mt-1 w-full text-black" />
+                  </label>
+
+                  <div>
+                    <button type="submit" className="px-3 py-2 rounded bg-emerald-600 text-white">Create Sell Request</button>
+                  </div>
+                </form>
+
+                <div className="mt-6">
+                  <h3 className="text-sm font-semibold text-black">My Sell Requests</h3>
+                  {mySellListings.length === 0 && <div className="text-sm text-gray-500">No sell requests yet.</div>}
+                  <div className="space-y-3 mt-2">{mySellListings.map(l => (
+                    <div key={l._id} className="p-3 border rounded flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">{l.wasteType} — {l.quantityKg} kg</div>
+                        <div className="text-xs text-gray-500">Status: {l.status} • {new Date(l.createdAt).toLocaleString()}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        {l.status === 'open' && <button className="px-2 py-1 rounded border" onClick={() => navigator.clipboard.writeText(l._id)}>Copy ID</button>}
+                        <button className="px-2 py-1 rounded border" onClick={() => alert(JSON.stringify(l, null, 2))}>Details</button>
+                      </div>
+                    </div>
+                  ))}</div>
                 </div>
               </div>
             </div>

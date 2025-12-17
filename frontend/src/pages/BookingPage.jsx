@@ -172,8 +172,8 @@ export default function BookingPage() {
 
       const json = await res.json();
       alert('Booking created successfully');
-      // navigate to dashboard bookings section
-      navigate('/dashboard');
+      // navigate to dashboard and request bookings refresh
+      navigate('/dashboard', { state: { refreshBookings: true, activeTab: 'bookings' } });
     } catch (err) {
       console.error(err);
       alert('Failed to create booking: ' + (err.message || ''));

@@ -103,6 +103,8 @@ export default function ExpertDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showBookingDetails, setShowBookingDetails] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const isEditingProfileRef = useRef(false);
@@ -371,15 +373,43 @@ export default function ExpertDashboard() {
             <tbody>
               {bookings.map(b => (
                 <tr key={b._id} className="border-t">
-                  <td className="py-2">{b.service?.title || b.serviceTitle}</td>
-                  <td className="py-2">{b.user?.fullName || b.customerName}</td>
-                  <td className="py-2">{new Date(b.date || b.datetime).toLocaleString()}</td>
-                  <td className="py-2 capitalize">{b.status}</td>
+                  <td className="py-2 text-gray-900">{b.service?.title || b.serviceTitle}</td>
+                  <td className="py-2 text-gray-900">{b.user?.fullName || b.customerName}</td>
+                  <td className="py-2 text-gray-900">{new Date(b.date || b.datetime).toLocaleString()}</td>
+                  <td className="py-2 capitalize text-gray-900">{b.status}</td>
                   <td className="py-2">
                     <div className="flex gap-2">
-                      <button className="px-2 py-1 rounded bg-emerald-600 text-white" onClick={() => updateBookingStatus(b._id, 'confirmed')}>Accept</button>
-                      <button className="px-2 py-1 rounded bg-red-600 text-white" onClick={() => updateBookingStatus(b._id, 'rejected')}>Reject</button>
-                      <button className="px-2 py-1 rounded bg-gray-200" onClick={() => updateBookingStatus(b._id, 'completed')}>Complete</button>
+                      {b.status === 'pending' && (
+                        <>
+                          <button className="px-2 py-1 rounded bg-emerald-600 text-white" onClick={() => updateBookingStatus(b._id, 'confirmed')}>Accept</button>
+                          <button className="px-2 py-1 rounded bg-red-600 text-white" onClick={() => updateBookingStatus(b._id, 'rejected')}>Reject</button>
+                          <button className="px-2 py-1 rounded border" onClick={() => { setSelectedBooking(b); setShowBookingDetails(true); }}>Details</button>
+                        </>
+                      )}
+
+                      {b.status === 'confirmed' && (
+                        <>
+                          <button className="px-2 py-1 rounded bg-amber-600 text-white" onClick={() => updateBookingStatus(b._id, 'scheduled')}>Mark Scheduled</button>
+                          <button className="px-2 py-1 rounded bg-red-600 text-white" onClick={() => updateBookingStatus(b._id, 'cancelled')}>Cancel</button>
+                          <button className="px-2 py-1 rounded border" onClick={() => { setSelectedBooking(b); setShowBookingDetails(true); }}>Details</button>
+                        </>
+                      )}
+
+                      {b.status === 'scheduled' && (
+                        <>
+                          <button className="px-2 py-1 rounded bg-indigo-600 text-white" onClick={() => updateBookingStatus(b._id, 'in_progress')}>Start</button>
+                          <button className="px-2 py-1 rounded bg-red-600 text-white" onClick={() => updateBookingStatus(b._id, 'cancelled')}>Cancel</button>
+                          <button className="px-2 py-1 rounded border" onClick={() => { setSelectedBooking(b); setShowBookingDetails(true); }}>Details</button>
+                        </>
+                      )}
+
+                      {b.status === 'in_progress' && (
+                        <>
+                          <button className="px-2 py-1 rounded bg-gray-200" onClick={() => updateBookingStatus(b._id, 'completed')}>Complete</button>
+                          <button className="px-2 py-1 rounded bg-red-600 text-white" onClick={() => updateBookingStatus(b._id, 'cancelled')}>Cancel</button>
+                          <button className="px-2 py-1 rounded border" onClick={() => { setSelectedBooking(b); setShowBookingDetails(true); }}>Details</button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -419,6 +449,79 @@ export default function ExpertDashboard() {
       </Section>
     );
   }
+
+  // Booking details modal
+  const BookingDetailsModal = ({ booking, onClose }) => {
+    if (!booking) return null;
+    return (
+      <div className="fixed inset-0 z-[9000] bg-black/50 flex items-center justify-center" onClick={onClose}>
+        <div className="w-full max-w-3xl bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-5 py-3 border-b">
+            <h3 className="text-lg font-semibold">Booking Details</h3>
+            <button className="text-2xl leading-none text-gray-500 hover:text-gray-700" onClick={onClose}>×</button>
+          </div>
+          <div className="p-5 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs text-gray-500">Service</div>
+                <div className="font-medium text-gray-900">{booking.service?.title || booking.serviceTitle || '-'}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">User</div>
+                <div className="font-medium text-gray-900">{booking.user?.fullName || booking.customerName || '-'}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs text-gray-500">Date & Time</div>
+                <div className="font-medium text-gray-900">{new Date(booking.bookingDate || booking.date || booking.datetime).toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">Status</div>
+                <div className="font-medium text-gray-900 capitalize">{booking.status}</div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs text-gray-500">Address</div>
+              <div className="font-medium text-gray-900">{(booking.address || booking.location?.address || '')}</div>
+            </div>
+
+            <div>
+              <div className="text-xs text-gray-500">Contact Person</div>
+              <div className="font-medium text-gray-900">{booking.contactPerson?.name || '-'} — {booking.contactPerson?.phone || '-'}</div>
+            </div>
+
+            {booking.specialInstructions && (
+              <div>
+                <div className="text-xs text-gray-500">Special Instructions</div>
+                <div className="font-medium text-gray-900">{booking.specialInstructions}</div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button className="px-3 py-2 rounded bg-gray-100" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // render booking details modal when selected
+  useEffect(() => {
+    if (!showBookingDetails) setSelectedBooking(null);
+  }, [showBookingDetails]);
+
+  return (
+    <>
+      {showBookingDetails && selectedBooking && (
+        <BookingDetailsModal booking={selectedBooking} onClose={() => setShowBookingDetails(false)} />
+      )}
+    </>
+  );
+
 
   function EarningsSection() {
     return (
@@ -580,7 +683,7 @@ export default function ExpertDashboard() {
           )}
 
           <div className="md:col-span-2 flex justify-end gap-2">
-            <button type="button" className="px-4 py-2 rounded-lg border" onClick={onCancel}>Cancel</button>
+            <button type="button" className="px-4 py-2 rounded-lg border text-black" onClick={onCancel}>Cancel</button>
             <button type="submit" className="px-4 py-2 rounded-lg bg-emerald-600 text-white">Save</button>
           </div>
         </form>
