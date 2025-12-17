@@ -35,6 +35,39 @@ const createBooking = asyncHandler(async (req, res) => {
     // Check if provider is available on the requested date
     // (You can implement more sophisticated availability checking)
 
+    // normalize address to string when frontend may send an object
+    function normalizeToString(v) {
+        if (v == null) return '';
+        if (typeof v === 'string') return v;
+        if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+        if (typeof v === 'object') {
+            if (v.address && typeof v.address === 'string') return v.address;
+            if (v.line1 && typeof v.line1 === 'string') return v.line1;
+            if (v.street && typeof v.street === 'string') return v.street;
+            // join primitive values
+            try {
+                return Object.values(v).flatMap(x => (x == null ? [] : (typeof x === 'object' ? Object.values(x) : [x]))).filter(Boolean).map(s => String(s)).join(', ');
+            } catch (e) {
+                return JSON.stringify(v);
+            }
+        }
+        return String(v);
+    }
+
+    function normalizeLocation(loc) {
+        if (!loc) return { address: '', city: '', state: '', pincode: '', coordinates: {} };
+        return {
+            address: normalizeToString(loc.address || loc),
+            city: normalizeToString(loc.city),
+            state: normalizeToString(loc.state),
+            pincode: normalizeToString(loc.pincode),
+            coordinates: (loc.coordinates && typeof loc.coordinates === 'object') ? {
+                lat: loc.coordinates.lat || loc.coordinates?.lat || undefined,
+                lng: loc.coordinates.lng || loc.coordinates?.lng || undefined
+            } : {}
+        };
+    }
+
     // Calculate total amount
     const totalAmount = service.price;
 
@@ -45,8 +78,8 @@ const createBooking = asyncHandler(async (req, res) => {
         provider: service.provider,
         bookingDate: new Date(bookingDate),
         timeSlot,
-        address,
-        location: service.location,
+        address: normalizeToString(address) || normalizeToString(service.location) || '',
+        location: normalizeLocation(req.body.location) || normalizeLocation(service.location),
         contactPerson,
         specialInstructions,
         requirements,
@@ -55,9 +88,10 @@ const createBooking = asyncHandler(async (req, res) => {
         status: 'pending'
     });
 
-    // Increment service bookings count
+    // Increment service bookings count and mark service unavailable to others
     await Service.findByIdAndUpdate(serviceId, {
-        $inc: { bookingsCount: 1 }
+        $inc: { bookingsCount: 1 },
+        $set: { isAvailable: false, bookedBy: req.user._id, bookedAt: new Date() }
     });
 
     // Add booking to user's bookings
@@ -267,6 +301,18 @@ const cancelBooking = asyncHandler(async (req, res) => {
     booking.cancellationTime = new Date();
 
     await booking.save();
+    // If this booking had reserved the service, make it available again
+    try {
+        if (booking.service) {
+            await Service.findByIdAndUpdate(booking.service, {
+                $set: { isAvailable: true },
+                $unset: { bookedBy: "", bookedAt: "" }
+            });
+        }
+    } catch (e) {
+        // Log but don't block cancellation response
+        console.error('Failed to update service availability on cancellation', e);
+    }
 
     return res
         .status(200)
