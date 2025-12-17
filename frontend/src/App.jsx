@@ -16,6 +16,8 @@ import ProviderDashboard from "./dashboards/ProviderDashboard";
 import UserDashboard from "./dashboards/UserDashboard";
 import BookingPage from "./pages/BookingPage";
 import BlogPage from "./Blog";
+import ForgotPassword from "./ForgotPassword.jsx";
+import ResetPassword from "./ResetPassword.jsx";
 
 export default function App() {
   return (
@@ -112,7 +114,8 @@ export default function App() {
         <Route path="/ContactUs" element={<ContactUs />} />
         <Route path="/ServiceListing" element={<ServicesPage />} />
         <Route path="/services" element={<ServicesPage />} />
-
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
         {/* DASHBOARDS */}
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/expert" element={<ExpertDashboard />} />

@@ -202,7 +202,12 @@ export default function LoginPage() {
                                 Remember me
                             </label>
 
-                            <button type="button" disabled={isSubmitting} className="text-sm text-green-600 hover:underline disabled:opacity-60 focus:outline-none focus:ring-0">Forgot password?</button>
+                                <Link
+                                to="/forgot-password"
+                                className="text-sm text-green-600 hover:underline"
+                                >
+                                Forgot password?
+                                </Link>
                         </div>
 
                         {error && <div className="text-sm text-red-600 mt-1" role="alert" aria-live="assertive">{error}</div>}

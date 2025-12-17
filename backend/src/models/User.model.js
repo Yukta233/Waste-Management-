@@ -150,6 +150,15 @@ const userSchema = new Schema(
         },
         lastLogin: {
             type: Date
+        },
+        resetPasswordToken: {
+            type: String,
+            default: null
+        },
+  
+        resetPasswordExpire: {
+            type: Date,
+            default: null
         }
     },
     {

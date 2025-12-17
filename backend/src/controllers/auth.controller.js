@@ -5,6 +5,8 @@ import { User } from "../models/User.model.js";
 import fs from "fs";
 import jwt from "jsonwebtoken";
 import { uploadOnCloudinary as uploadImage } from "../config/cloudinary.js";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
 const generateAccessAndRefreshTokens = async (userId) => {
     try {
         const user = await User.findById(userId);
@@ -325,6 +327,216 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
         );
 });
 
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  console.log('📧 Forgot password request for:', email);
+
+  // Validate email
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      message: "Email is required"
+    });
+  }
+
+  // Find user
+  const user = await User.findOne({ email: email.toLowerCase() });
+  
+  if (!user) {
+    console.log('❌ User not found for email:', email);
+    return res.status(200).json({
+      success: true,
+      message: "If your email is registered, you will receive a password reset link shortly."
+    });
+  }
+
+  console.log('✅ User found:', user._id, user.email);
+
+  try {
+    // Generate token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+    
+    console.log('🔑 Generated reset token (plain):', resetToken);
+    console.log('🔑 Generated reset token (hashed):', hashedToken);
+    console.log('⏰ Expiry time:', new Date(Date.now() + 15 * 60 * 1000).toISOString());
+
+    // Update user with token and expiry
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 minutes from now
+    
+    await user.save({ validateBeforeSave: false });
+    
+    console.log('✅ Token saved to database');
+    console.log('✅ User after save:', {
+      resetPasswordToken: user.resetPasswordToken,
+      resetPasswordExpire: user.resetPasswordExpire
+    });
+
+    // Create reset URL
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    console.log('🔗 Reset URL:', resetUrl);
+
+    // Configure email transporter
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST,
+      port: parseInt(process.env.EMAIL_PORT),
+      secure: process.env.EMAIL_SECURE === 'true',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+
+    // Verify email configuration
+    await transporter.verify();
+    console.log('✅ Email server verified');
+
+    // Email content
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: user.email,
+      subject: "Password Reset Request - WasteCare",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333; text-align: center;">Password Reset Request</h2>
+          <p>Hello <strong>${user.fullName}</strong>,</p>
+          <p>Click the link below to reset your password:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" 
+               style="background-color: #4CAF50; color: white; padding: 12px 24px; 
+                      text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+              Reset Password
+            </a>
+          </div>
+          <p><strong>This link expires in 15 minutes.</strong></p>
+          <p>If you didn't request this, please ignore this email.</p>
+          <hr>
+          <p style="color: #666; font-size: 12px;">WasteCare Support</p>
+        </div>
+      `,
+      text: `Reset your password: ${resetUrl}\nExpires in 15 minutes.`
+    };
+
+    // Send email
+    const info = await transporter.sendMail(mailOptions);
+    console.log('📧 Email sent successfully:', info.messageId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset link sent to your email.",
+      // For debugging only - remove in production
+      debug: process.env.NODE_ENV === 'development' ? { 
+        resetUrl,
+        tokenLength: resetToken.length,
+        expiry: user.resetPasswordExpire 
+      } : undefined
+    });
+
+  } catch (error) {
+    console.error('❌ Error in forgot password:', error);
+    
+    // Clean up on error
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to process request. Please try again later.",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  console.log('🔄 Reset password attempt with token length:', token?.length);
+  console.log('🔄 Raw token from URL:', token);
+  console.log('🔄 Current time:', new Date().toISOString());
+
+  if (!password || password.length < 6) {
+    return res.status(400).json({ 
+      success: false,
+      message: "Password must be at least 6 characters long" 
+    });
+  }
+
+  if (!token || token.length !== 64) { // 32 bytes hex = 64 characters
+    console.log('❌ Invalid token length');
+    return res.status(400).json({ 
+      success: false,
+      message: "Invalid reset token format" 
+    });
+  }
+
+  // Hash the token to compare with stored one
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+
+  console.log('🔑 Hashed token for comparison:', hashedToken);
+
+  try {
+    // Find user with valid token
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() } // Check if expiry is in future
+    });
+
+    if (!user) {
+      console.log('❌ No user found with this token or token expired');
+      
+      // Let's check if token exists but is expired
+      const expiredUser = await User.findOne({
+        resetPasswordToken: hashedToken
+      });
+      
+      if (expiredUser) {
+        console.log('⏰ Token found but expired:', expiredUser.resetPasswordExpire);
+        console.log('⏰ Current time:', new Date().toISOString());
+        console.log('⏰ Token expiry:', new Date(expiredUser.resetPasswordExpire).toISOString());
+      }
+      
+      return res.status(400).json({ 
+        success: false,
+        message: "Invalid or expired reset token" 
+      });
+    }
+
+    console.log('✅ User found for token:', user.email);
+    console.log('✅ Token expires at:', new Date(user.resetPasswordExpire).toISOString());
+
+    // Update password and clear reset token
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    
+    await user.save();
+
+    console.log('✅ Password reset successful for user:', user.email);
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successfully. You can now login with your new password."
+    });
+
+  } catch (error) {
+    console.error('❌ Error in reset password:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: "Error resetting password",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 export {
     registerUser,
     loginUser,
@@ -332,5 +544,7 @@ export {
     refreshAccessToken,
     changeCurrentPassword,
     generateAccessAndRefreshTokens,
-    cleanupLocalFile
+    cleanupLocalFile,
+    forgotPassword,
+    resetPassword
 };
