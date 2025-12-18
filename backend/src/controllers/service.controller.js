@@ -3,7 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Service } from "../models/Service.model.js";
 import { User } from "../models/User.model.js";
-import { uploadImage } from "../config/cloudinary.js";
+import { uploadOnCloudinary as uploadImage } from "../config/cloudinary.js";
 
 // Category normalization helpers to align frontend and backend values
 const FrontToModelCategory = {

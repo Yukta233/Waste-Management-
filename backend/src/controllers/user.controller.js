@@ -98,13 +98,22 @@ const updateProfilePhoto = asyncHandler(async (req, res) => {
     // Upload to Cloudinary
     const uploadResult = await uploadImage(req.file.path);
     
-    if (!uploadResult.url) {
+    // Check if upload was successful
+    if (!uploadResult) {
         throw new ApiError(400, "Error uploading profile photo");
+    }
+
+    // Get the URL from the Cloudinary response
+    // Cloudinary returns an object with 'secure_url' or 'url' property
+    const profilePhotoUrl = uploadResult.secure_url || uploadResult.url;
+    
+    if (!profilePhotoUrl) {
+        throw new ApiError(400, "Error getting profile photo URL");
     }
 
     const user = await User.findByIdAndUpdate(
         req.user._id,
-        { $set: { profilePhoto: uploadResult.url } },
+        { $set: { profilePhoto: profilePhotoUrl } },
         { new: true }
     ).select("-password -refreshToken -verificationDocuments");
 
@@ -129,7 +138,15 @@ const updateVerificationDocuments = asyncHandler(async (req, res) => {
     const uploadPromises = req.files.map(file => uploadImage(file.path));
     const uploadResults = await Promise.all(uploadPromises);
     
-    const documentUrls = uploadResults.map(result => result.url);
+    // Extract URLs from upload results
+    const documentUrls = uploadResults
+        .filter(result => result) // Filter out null results
+        .map(result => result.secure_url || result.url)
+        .filter(url => url); // Filter out undefined URLs
+
+    if (documentUrls.length === 0) {
+        throw new ApiError(400, "Failed to upload documents");
+    }
 
     const user = await User.findByIdAndUpdate(
         req.user._id,
@@ -236,11 +253,22 @@ const getServiceProviders = asyncHandler(async (req, res) => {
         );
 });
 
+// Additional helper function for registration (if needed elsewhere)
+const handleProfilePhotoUpload = async (file) => {
+    if (!file || !file.path) {
+        return "";
+    }
+    
+    const uploadResult = await uploadImage(file.path);
+    return uploadResult?.secure_url || uploadResult?.url || "";
+};
+
 export {
     getCurrentUser,
     updateAccountDetails,
     updateProfilePhoto,
     updateVerificationDocuments,
     getUserProfile,
-    getServiceProviders
+    getServiceProviders,
+    handleProfilePhotoUpload // Export if needed in auth controller
 };

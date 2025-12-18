@@ -5,7 +5,7 @@ import { ApiError } from '../utils/ApiError.js';
 
 // Ensure uploads directory exists
 const ensureUploadsDir = () => {
-    const uploadDir = 'uploads';
+    const uploadDir = './public/temp'; // Changed to match your Cloudinary cleanup
     if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -34,11 +34,11 @@ const imageFileFilter = (req, file, cb) => {
         'image/jpg',
         'image/png',
         'image/gif',
-        'image/webp',
-        'image/svg+xml'
+        'image/webp'
+        // Removed 'image/svg+xml' - SVG is not typically uploaded to Cloudinary
     ];
     
-    const allowedExtensions = ['.jpeg', '.jpg', '.png', '.gif', '.webp', '.svg'];
+    const allowedExtensions = ['.jpeg', '.jpg', '.png', '.gif', '.webp'];
     const fileExt = path.extname(file.originalname).toLowerCase();
 
     if (allowedMimeTypes.includes(file.mimetype) && allowedExtensions.includes(fileExt)) {
@@ -71,11 +71,11 @@ const documentFileFilter = (req, file, cb) => {
 
 // File size limits
 const limits = {
-    fileSize: 10 * 1024 * 1024, // 10MB max file size
+    fileSize: 5 * 1024 * 1024, // Reduced to 5MB (Cloudinary recommends < 10MB)
     files: 10 // Max 10 files per upload
 };
 
-// Configure multer instances for different use cases
+// Create multer instances
 const upload = multer({
     storage: storage,
     fileFilter: imageFileFilter,
@@ -100,29 +100,6 @@ const uploadServiceImages = upload.array('images', 5); // Max 5 images
 // Multiple files upload for verification documents
 const uploadVerificationDocuments = uploadDocuments.array('documents', 5); // Max 5 documents
 
-// Mixed upload (images + documents)
-const uploadMixed = multer({
-    storage: storage,
-    fileFilter: (req, file, cb) => {
-        // Check if file is image
-        if (file.mimetype.startsWith('image/')) {
-            return imageFileFilter(req, file, cb);
-        }
-        // Check if file is document
-        else if (file.mimetype.includes('pdf') || file.mimetype.includes('word')) {
-            return documentFileFilter(req, file, cb);
-        }
-        // Reject other types
-        else {
-            cb(new ApiError(400, 'Only image and document files are allowed'), false);
-        }
-    },
-    limits: limits
-}).fields([
-    { name: 'images', maxCount: 5 },
-    { name: 'documents', maxCount: 5 }
-]);
-
 // Middleware to handle upload errors
 const handleUploadError = (err, req, res, next) => {
     if (err instanceof multer.MulterError) {
@@ -137,7 +114,7 @@ const handleUploadError = (err, req, res, next) => {
         }
         return next(new ApiError(400, message));
     } else if (err) {
-        // Other errors
+        // Other errors (including our ApiError)
         return next(err);
     }
     next();
@@ -146,15 +123,29 @@ const handleUploadError = (err, req, res, next) => {
 // Cleanup temporary files middleware
 const cleanupTempFiles = (req, res, next) => {
     // Cleanup files after response is sent
-    res.on('finish', () => {
+    res.on('finish', function() {
+        if (req.file) {
+            // Handle single file
+            if (req.file.path && fs.existsSync(req.file.path)) {
+                try {
+                    fs.unlinkSync(req.file.path);
+                    console.log('🗑️ Cleaned up temp file:', req.file.path);
+                } catch (error) {
+                    console.error('❌ Error deleting temp file:', error.message);
+                }
+            }
+        }
+        
         if (req.files) {
+            // Handle multiple files
             const files = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
             files.forEach(file => {
                 if (file.path && fs.existsSync(file.path)) {
                     try {
                         fs.unlinkSync(file.path);
+                        console.log('🗑️ Cleaned up temp file:', file.path);
                     } catch (error) {
-                        console.error('Error deleting temp file:', error.message);
+                        console.error('❌ Error deleting temp file:', error.message);
                     }
                 }
             });
@@ -176,75 +167,12 @@ const getFileMetadata = (file) => {
 };
 
 // Utility function to validate file size
-const validateFileSize = (file, maxSizeMB = 10) => {
+const validateFileSize = (file, maxSizeMB = 5) => {
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     if (file.size > maxSizeBytes) {
         throw new ApiError(400, `File ${file.originalname} is too large. Maximum size is ${maxSizeMB}MB`);
     }
     return true;
-};
-
-// Utility function to validate image dimensions (optional)
-const validateImageDimensions = async (filePath, minWidth = 100, minHeight = 100) => {
-    // This requires sharp or similar library
-    // Install: npm install sharp
-    try {
-        const sharp = await import('sharp');
-        const metadata = await sharp.default(filePath).metadata();
-        
-        if (metadata.width < minWidth || metadata.height < minHeight) {
-            throw new ApiError(400, `Image dimensions too small. Minimum ${minWidth}x${minHeight}px required`);
-        }
-        return metadata;
-    } catch (error) {
-        // If sharp is not installed or error, skip dimension validation
-        console.warn('Image dimension validation skipped:', error.message);
-        return null;
-    }
-};
-
-// Generate thumbnail (optional - requires sharp)
-const generateThumbnail = async (filePath, width = 300, height = 300) => {
-    try {
-        const sharp = await import('sharp');
-        const thumbnailPath = filePath.replace(path.extname(filePath), `_thumb${path.extname(filePath)}`);
-        
-        await sharp.default(filePath)
-            .resize(width, height, { fit: 'cover' })
-            .toFile(thumbnailPath);
-        
-        return thumbnailPath;
-    } catch (error) {
-        console.error('Thumbnail generation failed:', error.message);
-        return null;
-    }
-};
-
-// Middleware to process uploaded images (resize, optimize)
-const processUploadedImages = async (req, res, next) => {
-    try {
-        if (!req.files) return next();
-        
-        const files = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
-        
-        for (const file of files) {
-            if (file.mimetype.startsWith('image/')) {
-                // Validate dimensions if needed
-                // await validateImageDimensions(file.path, 300, 300);
-                
-                // Generate thumbnail if needed
-                // const thumbnailPath = await generateThumbnail(file.path);
-                // file.thumbnailPath = thumbnailPath;
-                
-                // Add metadata to request
-                file.metadata = getFileMetadata(file);
-            }
-        }
-        
-        next();
-    } catch (error) {
-        next(error);
-    }
 };
 
 // Export middleware functions
@@ -255,10 +183,8 @@ export {
     uploadServiceImage,
     uploadServiceImages,
     uploadVerificationDocuments,
-    uploadMixed,
     handleUploadError,
     cleanupTempFiles,
-    processUploadedImages,
     getFileMetadata,
     validateFileSize
 };

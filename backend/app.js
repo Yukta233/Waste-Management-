@@ -1,3 +1,4 @@
+// src/app.js - SIMPLIFIED VERSION
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -37,7 +38,8 @@ app.get('/health', (req, res) => {
     res.status(200).json({ 
         status: 'ok', 
         message: 'Composting Platform API is running',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
     });
 });
 
@@ -45,14 +47,7 @@ app.get('/health', (req, res) => {
 app.get('/', (req, res) => {
     res.json({ 
         message: 'Welcome to Composting Platform API',
-        version: '1.0.0',
-        documentation: {
-            auth: '/api/v1/auth',
-            users: '/api/v1/users',
-            services: '/api/v1/services',
-            bookings: '/api/v1/bookings',
-            admin: '/api/v1/admin'
-        }
+        version: '1.0.0'
     });
 });
 
@@ -67,7 +62,7 @@ app.use('*', (req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
-    console.error('🔥 Server Error:', err.stack);
+    console.error('🔥 Server Error:', err.message);
     
     const statusCode = err.statusCode || 500;
     const message = err.message || 'Internal server error';

@@ -4,9 +4,10 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/User.model.js";
 import fs from "fs";
 import jwt from "jsonwebtoken";
-import { uploadOnCloudinary as uploadImage } from "../config/cloudinary.js";
+import { uploadOnCloudinary} from "../config/cloudinary.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+
 const generateAccessAndRefreshTokens = async (userId) => {
     try {
         const user = await User.findById(userId);
@@ -23,6 +24,17 @@ const generateAccessAndRefreshTokens = async (userId) => {
     }
 };
 
+const cleanupLocalFile = (filePath) => {
+    if (filePath && fs.existsSync(filePath)) {
+        try {
+            fs.unlinkSync(filePath);
+            console.log('🗑️ Cleaned up local file:', filePath);
+        } catch (error) {
+            console.error('❌ Error cleaning up file:', error.message);
+        }
+    }
+};
+
 const registerUser = asyncHandler(async (req, res) => {
     const {
         fullName,
@@ -33,7 +45,8 @@ const registerUser = asyncHandler(async (req, res) => {
         expertise,
         companyName,
         address,
-        bio
+        bio,
+        username
     } = req.body;
 
     // Validation
@@ -41,42 +54,6 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Full name, email, and password are required");
     }
 
-
-     let profilePhotoUrl = "";
-    if (req.file) {
-        console.log('🖼️ Attempting to upload profile photo...');
-        console.log('📁 File path:', req.file.path);
-        console.log('📁 File exists?', fs.existsSync(req.file.path));
-        
-        try {
-            const uploadResult = await uploadImage(req.file.path);
-            console.log('☁️ Cloudinary upload result:', uploadResult);
-            
-            if (uploadResult && uploadResult.url) {
-                profilePhotoUrl = uploadResult.url;
-                console.log('✅ Photo uploaded successfully:', profilePhotoUrl);
-                
-                // ✅ Delete the local file after successful upload
-                try {
-                    fs.unlinkSync(req.file.path);
-                    console.log('🗑️ Local file deleted successfully');
-                } catch (deleteError) {
-                    console.error('❌ Error deleting local file:', deleteError.message);
-                }
-            } else {
-                console.log('❌ Cloudinary upload failed or returned no URL');
-            }
-        } catch (error) {
-            console.error('❌ Error uploading profile photo:', error.message);
-            console.error('❌ Full error:', error);
-        }
-    } else {
-        console.log('❌ No file in request');
-        console.log('❌ Request files:', req.files);
-        console.log('❌ Request file:', req.file);
-    }
-
-    // ... rest of your code ...
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -89,10 +66,47 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new ApiError(409, "User with this email already exists");
     }
 
+    // Check if username already exists (if provided)
+    if (username) {
+        const existingUsername = await User.findOne({ username });
+        if (existingUsername) {
+            throw new ApiError(409, "Username already taken");
+        }
+    }
+
     // Validate role
     const validRoles = ['admin', 'expert', 'provider', 'user'];
     if (!validRoles.includes(role)) {
         throw new ApiError(400, "Invalid user role");
+    }
+
+    // Handle profile photo upload
+    let profilePhotoUrl = "";
+    if (req.file && req.file.path) {
+        console.log('🖼️ Attempting to upload profile photo...');
+        console.log('📁 File path:', req.file.path);
+        console.log('📁 File exists?', fs.existsSync(req.file.path));
+        
+        try {
+            const uploadResult = await uploadOnCloudinary(req.file.path);
+            console.log('☁️ Cloudinary upload result:', uploadResult);
+            
+            if (uploadResult) {
+                // Extract URL from Cloudinary response
+                profilePhotoUrl = uploadResult.secure_url || uploadResult.url;
+                console.log('✅ Photo uploaded successfully:', profilePhotoUrl);
+            } else {
+                console.log('❌ Cloudinary upload returned null');
+            }
+        } catch (error) {
+            console.error('❌ Error uploading profile photo:', error.message);
+            // Don't throw error, just continue without profile photo
+        } finally {
+            // Always clean up local file
+            cleanupLocalFile(req.file.path);
+        }
+    } else {
+        console.log('ℹ️ No profile photo provided');
     }
 
     // Parse expertise if provided
@@ -101,6 +115,16 @@ const registerUser = asyncHandler(async (req, res) => {
         expertiseArray = typeof expertise === 'string' 
             ? expertise.split(',').map(item => item.trim())
             : expertise;
+    }
+
+    // Parse address if provided as string
+    let addressObj = {};
+    if (address) {
+        try {
+            addressObj = typeof address === 'string' ? JSON.parse(address) : address;
+        } catch (error) {
+            console.log('⚠️ Invalid address format, using empty object');
+        }
     }
 
     // Set verification status based on role
@@ -115,20 +139,22 @@ const registerUser = asyncHandler(async (req, res) => {
         verificationStatus = 'pending';
     }
 
-    // Create user
+    // Create user with all fields
     const user = await User.create({
         fullName,
         email: email.toLowerCase(),
         password,
         phoneNumber,
+        username: username || email.toLowerCase().split('@')[0], // Default username from email
         role,
         expertise: expertiseArray,
         companyName,
-        address: address || {},
+        address: addressObj,
         bio,
-        profilePhoto: profilePhotoUrl, // ADD THIS LINE
+        profilePhoto: profilePhotoUrl,
         isVerified,
-        verificationStatus
+        verificationStatus,
+        isActive: true
     });
 
     // Generate tokens
@@ -164,14 +190,21 @@ const registerUser = asyncHandler(async (req, res) => {
 });
 
 const loginUser = asyncHandler(async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, username } = req.body;
 
-    if (!email || !password) {
-        throw new ApiError(400, "Email and password are required");
+    // Check if either email or username is provided
+    if ((!email && !username) || !password) {
+        throw new ApiError(400, "Email/username and password are required");
     }
 
-    // Find user
-    const user = await User.findOne({ email: email.toLowerCase() });
+    // Find user by email or username
+    let user;
+    if (email) {
+        user = await User.findOne({ email: email.toLowerCase() });
+    } else {
+        user = await User.findOne({ username });
+    }
+    
     if (!user) {
         throw new ApiError(404, "User not found");
     }
@@ -289,16 +322,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         throw new ApiError(401, error?.message || "Invalid refresh token");
     }
 });
-const cleanupLocalFile = (filePath) => {
-    if (filePath && fs.existsSync(filePath)) {
-        try {
-            fs.unlinkSync(filePath);
-            console.log('🗑️ Cleaned up local file:', filePath);
-        } catch (error) {
-            console.error('❌ Error cleaning up file:', error.message);
-        }
-    }
-};
+
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
 
@@ -328,213 +352,209 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 });
 
 const forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body;
+    const { email } = req.body;
 
-  console.log('📧 Forgot password request for:', email);
+    console.log('📧 Forgot password request for:', email);
 
-  // Validate email
-  if (!email) {
-    return res.status(400).json({
-      success: false,
-      message: "Email is required"
-    });
-  }
-
-  // Find user
-  const user = await User.findOne({ email: email.toLowerCase() });
-  
-  if (!user) {
-    console.log('❌ User not found for email:', email);
-    return res.status(200).json({
-      success: true,
-      message: "If your email is registered, you will receive a password reset link shortly."
-    });
-  }
-
-  console.log('✅ User found:', user._id, user.email);
-
-  try {
-    // Generate token
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
-    
-    console.log('🔑 Generated reset token (plain):', resetToken);
-    console.log('🔑 Generated reset token (hashed):', hashedToken);
-    console.log('⏰ Expiry time:', new Date(Date.now() + 15 * 60 * 1000).toISOString());
-
-    // Update user with token and expiry
-    user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 minutes from now
-    
-    await user.save({ validateBeforeSave: false });
-    
-    console.log('✅ Token saved to database');
-    console.log('✅ User after save:', {
-      resetPasswordToken: user.resetPasswordToken,
-      resetPasswordExpire: user.resetPasswordExpire
-    });
-
-    // Create reset URL
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
-    console.log('🔗 Reset URL:', resetUrl);
-
-    // Configure email transporter
-    const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: parseInt(process.env.EMAIL_PORT),
-      secure: process.env.EMAIL_SECURE === 'true',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      },
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
-
-    // Verify email configuration
-    await transporter.verify();
-    console.log('✅ Email server verified');
-
-    // Email content
-    const mailOptions = {
-      from: process.env.EMAIL_FROM,
-      to: user.email,
-      subject: "Password Reset Request - WasteCare",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333; text-align: center;">Password Reset Request</h2>
-          <p>Hello <strong>${user.fullName}</strong>,</p>
-          <p>Click the link below to reset your password:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" 
-               style="background-color: #4CAF50; color: white; padding: 12px 24px; 
-                      text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-              Reset Password
-            </a>
-          </div>
-          <p><strong>This link expires in 15 minutes.</strong></p>
-          <p>If you didn't request this, please ignore this email.</p>
-          <hr>
-          <p style="color: #666; font-size: 12px;">WasteCare Support</p>
-        </div>
-      `,
-      text: `Reset your password: ${resetUrl}\nExpires in 15 minutes.`
-    };
-
-    // Send email
-    const info = await transporter.sendMail(mailOptions);
-    console.log('📧 Email sent successfully:', info.messageId);
-
-    return res.status(200).json({
-      success: true,
-      message: "Password reset link sent to your email.",
-      // For debugging only - remove in production
-      debug: process.env.NODE_ENV === 'development' ? { 
-        resetUrl,
-        tokenLength: resetToken.length,
-        expiry: user.resetPasswordExpire 
-      } : undefined
-    });
-
-  } catch (error) {
-    console.error('❌ Error in forgot password:', error);
-    
-    // Clean up on error
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-    await user.save({ validateBeforeSave: false });
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to process request. Please try again later.",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-const resetPassword = asyncHandler(async (req, res) => {
-  const { token } = req.params;
-  const { password } = req.body;
-
-  console.log('🔄 Reset password attempt with token length:', token?.length);
-  console.log('🔄 Raw token from URL:', token);
-  console.log('🔄 Current time:', new Date().toISOString());
-
-  if (!password || password.length < 6) {
-    return res.status(400).json({ 
-      success: false,
-      message: "Password must be at least 6 characters long" 
-    });
-  }
-
-  if (!token || token.length !== 64) { // 32 bytes hex = 64 characters
-    console.log('❌ Invalid token length');
-    return res.status(400).json({ 
-      success: false,
-      message: "Invalid reset token format" 
-    });
-  }
-
-  // Hash the token to compare with stored one
-  const hashedToken = crypto
-    .createHash("sha256")
-    .update(token)
-    .digest("hex");
-
-  console.log('🔑 Hashed token for comparison:', hashedToken);
-
-  try {
-    // Find user with valid token
-    const user = await User.findOne({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpire: { $gt: Date.now() } // Check if expiry is in future
-    });
-
-    if (!user) {
-      console.log('❌ No user found with this token or token expired');
-      
-      // Let's check if token exists but is expired
-      const expiredUser = await User.findOne({
-        resetPasswordToken: hashedToken
-      });
-      
-      if (expiredUser) {
-        console.log('⏰ Token found but expired:', expiredUser.resetPasswordExpire);
-        console.log('⏰ Current time:', new Date().toISOString());
-        console.log('⏰ Token expiry:', new Date(expiredUser.resetPasswordExpire).toISOString());
-      }
-      
-      return res.status(400).json({ 
-        success: false,
-        message: "Invalid or expired reset token" 
-      });
+    // Validate email
+    if (!email) {
+        return res.status(400).json({
+            success: false,
+            message: "Email is required"
+        });
     }
 
-    console.log('✅ User found for token:', user.email);
-    console.log('✅ Token expires at:', new Date(user.resetPasswordExpire).toISOString());
-
-    // Update password and clear reset token
-    user.password = password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
+    // Find user
+    const user = await User.findOne({ email: email.toLowerCase() });
     
-    await user.save();
+    if (!user) {
+        console.log('❌ User not found for email:', email);
+        // For security, don't reveal that user doesn't exist
+        return res.status(200).json({
+            success: true,
+            message: "If your email is registered, you will receive a password reset link shortly."
+        });
+    }
 
-    console.log('✅ Password reset successful for user:', user.email);
+    console.log('✅ User found:', user._id, user.email);
 
-    return res.status(200).json({
-      success: true,
-      message: "Password reset successfully. You can now login with your new password."
-    });
+    try {
+        // Generate token
+        const resetToken = crypto.randomBytes(32).toString("hex");
+        const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+        
+        console.log('🔑 Generated reset token');
+        console.log('⏰ Expiry time:', new Date(Date.now() + 15 * 60 * 1000).toISOString());
 
-  } catch (error) {
-    console.error('❌ Error in reset password:', error);
-    return res.status(500).json({ 
-      success: false,
-      message: "Error resetting password",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
+        // Update user with token and expiry
+        user.resetPasswordToken = hashedToken;
+        user.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 minutes from now
+        
+        await user.save({ validateBeforeSave: false });
+        
+        console.log('✅ Token saved to database');
+
+        // Create reset URL
+        const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+        console.log('🔗 Reset URL:', resetUrl);
+
+        // Configure email transporter
+        const transporter = nodemailer.createTransport({
+            host: process.env.EMAIL_HOST,
+            port: parseInt(process.env.EMAIL_PORT),
+            secure: process.env.EMAIL_SECURE === 'true',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            },
+            tls: {
+                rejectUnauthorized: false
+            }
+        });
+
+        // Verify email configuration
+        await transporter.verify();
+        console.log('✅ Email server verified');
+
+        // Email content
+        const mailOptions = {
+            from: process.env.EMAIL_FROM,
+            to: user.email,
+            subject: "Password Reset Request - WasteCare",
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #333; text-align: center;">Password Reset Request</h2>
+                    <p>Hello <strong>${user.fullName}</strong>,</p>
+                    <p>Click the link below to reset your password:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${resetUrl}" 
+                        style="background-color: #4CAF50; color: white; padding: 12px 24px; 
+                                text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                        Reset Password
+                        </a>
+                    </div>
+                    <p><strong>This link expires in 15 minutes.</strong></p>
+                    <p>If you didn't request this, please ignore this email.</p>
+                    <hr>
+                    <p style="color: #666; font-size: 12px;">WasteCare Support</p>
+                </div>
+            `,
+            text: `Reset your password: ${resetUrl}\nExpires in 15 minutes.`
+        };
+
+        // Send email
+        const info = await transporter.sendMail(mailOptions);
+        console.log('📧 Email sent successfully:', info.messageId);
+
+        return res.status(200).json({
+            success: true,
+            message: "Password reset link sent to your email.",
+            // For debugging only - remove in production
+            debug: process.env.NODE_ENV === 'development' ? { 
+                resetUrl,
+                tokenLength: resetToken.length,
+                expiry: user.resetPasswordExpire 
+            } : undefined
+        });
+
+    } catch (error) {
+        console.error('❌ Error in forgot password:', error);
+        
+        // Clean up on error
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpire = undefined;
+        await user.save({ validateBeforeSave: false });
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to process request. Please try again later.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    console.log('🔄 Reset password attempt with token length:', token?.length);
+    console.log('🔄 Current time:', new Date().toISOString());
+
+    if (!password || password.length < 6) {
+        return res.status(400).json({ 
+            success: false,
+            message: "Password must be at least 6 characters long" 
+        });
+    }
+
+    if (!token || token.length !== 64) { // 32 bytes hex = 64 characters
+        console.log('❌ Invalid token length');
+        return res.status(400).json({ 
+            success: false,
+            message: "Invalid reset token format" 
+        });
+    }
+
+    // Hash the token to compare with stored one
+    const hashedToken = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
+
+    console.log('🔑 Hashed token for comparison:', hashedToken);
+
+    try {
+        // Find user with valid token
+        const user = await User.findOne({
+            resetPasswordToken: hashedToken,
+            resetPasswordExpire: { $gt: Date.now() } // Check if expiry is in future
+        });
+
+        if (!user) {
+            console.log('❌ No user found with this token or token expired');
+            
+            // Let's check if token exists but is expired
+            const expiredUser = await User.findOne({
+                resetPasswordToken: hashedToken
+            });
+            
+            if (expiredUser) {
+                console.log('⏰ Token found but expired:', expiredUser.resetPasswordExpire);
+                console.log('⏰ Current time:', new Date().toISOString());
+                console.log('⏰ Token expiry:', new Date(expiredUser.resetPasswordExpire).toISOString());
+            }
+            
+            return res.status(400).json({ 
+                success: false,
+                message: "Invalid or expired reset token" 
+            });
+        }
+
+        console.log('✅ User found for token:', user.email);
+        console.log('✅ Token expires at:', new Date(user.resetPasswordExpire).toISOString());
+
+        // Update password and clear reset token
+        user.password = password;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpire = undefined;
+        
+        await user.save();
+
+        console.log('✅ Password reset successful for user:', user.email);
+
+        return res.status(200).json({
+            success: true,
+            message: "Password reset successfully. You can now login with your new password."
+        });
+
+    } catch (error) {
+        console.error('❌ Error in reset password:', error);
+        return res.status(500).json({ 
+            success: false,
+            message: "Error resetting password",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
 });
 
 export {
