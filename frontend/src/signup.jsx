@@ -54,7 +54,7 @@ export default function CreateUserAccount() {
         if (formData.vehicle) fd.append('vehicle', formData.vehicle);
         if (formData.address) fd.append('address', typeof formData.address === 'string' ? formData.address : JSON.stringify(formData.address));
         // Attach profile picture file if present
-        if (formData.profilePic) fd.append('profilePic', formData.profilePic);
+        if (formData.profilePhoto) fd.append('profilePhoto', formData.profilePhoto);
 
         setSubmitting(true);
         try {
@@ -86,7 +86,7 @@ export default function CreateUserAccount() {
                     <AnimatedInput label="Email" name="email" type="email" onChange={handleChange} />
                     <AnimatedInput label="Password" name="password" type="password" onChange={handleChange} />
                     <AnimatedInput label="Address" name="address" onChange={handleChange} />
-                    <AnimatedInput label="Profile Picture" name="profilePic" type="file" onChange={handleChange} />
+                    <AnimatedInput label="Profile Picture" name="profilePhoto" type="file" onChange={handleChange} />
                 </>
             );
         }
@@ -99,7 +99,7 @@ export default function CreateUserAccount() {
                     <AnimatedInput label="Phone Number" name="phone" type="number" onChange={handleChange} />
                     {/* Removed expertise dropdown per request; add address for experts */}
                     <AnimatedInput label="Address" name="address" onChange={handleChange} />
-                    <AnimatedInput label="Profile Picture" name="profilePic" type="file" onChange={handleChange} />
+                    <AnimatedInput label="Profile Picture" name="profilePhoto" type="file" onChange={handleChange} />
                     <AnimatedInput label="Password" name="password" type="password" onChange={handleChange} />
                 </>
             );
@@ -112,7 +112,7 @@ export default function CreateUserAccount() {
                 <AnimatedInput label="Password" name="password" type="password" onChange={handleChange} />
                 <AnimatedInput label="Phone Number" name="phone" type="number" onChange={handleChange} />
                 <AnimatedInput label="Address" name="address" onChange={handleChange} />
-                <AnimatedInput label="Profile Picture" name="profilePic" type="file" onChange={handleChange} />
+                <AnimatedInput label="Profile Picture" name="profilePhoto" type="file" onChange={handleChange} />
             </>
         );
 
