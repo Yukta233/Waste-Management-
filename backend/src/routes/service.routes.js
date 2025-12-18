@@ -17,8 +17,8 @@ const router = express.Router();
 // ============ PUBLIC ROUTES ============
 // Anyone can view services
 router.get("/", getAllServices);
-router.get("/:serviceId", getServiceById);
 router.get("/provider/:providerId", getServicesByProvider);
+router.get("/:serviceId", getServiceById);
 
 // ============ PROTECTED ROUTES ============
 router.use(verifyJWT); // All routes below require authentication

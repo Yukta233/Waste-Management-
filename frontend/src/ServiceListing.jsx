@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FaChevronDown } from "react-icons/fa";
 import Header from "./components/Header";
 export default function ServicesPage() {
   const [services, setServices] = useState([]);
+  const [allServices, setAllServices] = useState([]);
+  const [keyword, setKeyword] = useState("");
   const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api/v1";
 
   // STATIC DEMO DATA
@@ -329,24 +330,15 @@ export default function ServicesPage() {
 
   const [domain, setDomain] = useState("Residential");
   const [selectedService, setSelectedService] = useState(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
 
   // Second-level subcategory state
   const [subcategory, setSubcategory] = useState("");
-  const [isSubOpen, setIsSubOpen] = useState(false);
-
+  
   // FILTERS
-  const [search, setSearch] = useState("");
-  const [location, setLocation] = useState("");
-  const [type, setType] = useState("");
-  const [priceMin, setPriceMin] = useState("");
-  const [priceMax, setPriceMax] = useState("");
-
+  
   // Availability/Pricing form (for providers)
-  const [addr, setAddr] = useState("");
-  const [availability, setAvailability] = useState({});
-
+  
   const navigate = useNavigate();
   const heading = subcategory || `${domain} Services`;
 
@@ -367,10 +359,7 @@ export default function ServicesPage() {
       const params = {
         status: 'active',
       };
-      if (priceMin) params.minPrice = priceMin;
-      if (priceMax) params.maxPrice = priceMax;
-      if (location) params.city = location;
-      const mappedCat = mapFrontToBackendCategory(subcategory || type);
+      const mappedCat = mapFrontToBackendCategory(subcategory);
       if (mappedCat) params.category = mappedCat;
 
       const res = await axios.get(`${API_BASE}/services`, { params });
@@ -383,9 +372,25 @@ export default function ServicesPage() {
         price: svc.price,
         location: svc.location?.city || svc.city || '',
         photos: (Array.isArray(svc.images) && svc.images.length ? svc.images : ["https://via.placeholder.com/300"]).slice(0,1),
-        provider: { name: svc.provider?.fullName || svc.provider?.companyName || 'Service Expert' },
+        images: Array.isArray(svc.images) ? svc.images : [],
+        provider: {
+          id: svc.provider?._id,
+          name: svc.provider?.fullName || svc.provider?.companyName || 'Service Expert',
+          photo: svc.provider?.profilePhoto || '',
+        },
         domain: 'Residential',
+        category: svc.category || '',
+        tags: Array.isArray(svc.tags) ? svc.tags : [],
+        features: Array.isArray(svc.features) ? svc.features : [],
+        specifications: (svc.specifications && typeof svc.specifications === 'object') ? svc.specifications : {},
+        availability: svc.availability || '',
+        serviceArea: Array.isArray(svc.serviceArea) ? svc.serviceArea : [],
+        currency: svc.currency || 'INR',
+        priceType: svc.priceType || 'fixed',
+        status: svc.status,
       }));
+
+      setAllServices(normalized);
 
       if (!normalized.length) {
         const byDomain = staticServices.filter((s) => s.domain === domain);
@@ -408,7 +413,7 @@ export default function ServicesPage() {
       setServices(fallback);
     }
   };
-
+66
   // Normalize domain values from query param to canonical labels
   const normalizeDomain = (raw) => {
     if (!raw) return null;
@@ -440,199 +445,87 @@ export default function ServicesPage() {
       fetchServices();
     }, 250);
     return () => clearTimeout(t);
-  }, [search, location, type, priceMin, priceMax]);
+  }, []);
+
+  // Compute filtered services based on keyword locally for reliability
+  useEffect(() => {
+    const k = keyword.trim().toLowerCase();
+    if (!k) {
+      setServices(allServices);
+      return;
+    }
+    const filtered = allServices.filter(s => {
+      const hay = [
+        s.title,
+        s.description,
+        s.location,
+        s.provider?.name,
+        s.category,
+        ...(s.tags || [])
+      ]
+        .filter(Boolean)
+        .join(" \n ")
+        .toLowerCase();
+      return hay.includes(k);
+    });
+    setServices(filtered);
+  }, [keyword, allServices]);
 
   const openModal = (service) => {
     setSelectedService(service);
-    setIsOpen(false);
   };
 
   // Close dropdowns on outside click
-  const categoryRef = useRef(null);
-  const subcategoryRef = useRef(null);
-  useEffect(() => {
-    const onDocClick = (e) => {
-      if (categoryRef.current && !categoryRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-      if (subcategoryRef.current && !subcategoryRef.current.contains(e.target)) {
-        setIsSubOpen(false);
-      }
-    };
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
-  }, []);
-
+    
   const closeModal = () => {
     setSelectedService(null);
   };
 
   // BOOK NOW LOGIC
   const handleBookNow = (id) => {
-    const token = localStorage.getItem("token");
+    // Read user session
+    const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
+    let user = null;
+    try { user = storedUser ? JSON.parse(storedUser) : null; } catch {}
 
-    if (!token) {
-      alert("⚠️ Please login first.");
+    if (!user) {
+      alert('Please login as a regular user to book the service.');
+      navigate('/login');
       return;
     }
 
-    navigate(`/book/${id}`);
+    const role = (user.role || '').toLowerCase();
+    if (['admin', 'expert', 'provider'].includes(role)) {
+      alert('This is not accessible for you. You have to be a regular user to book the service.');
+      return;
+    }
+
+    // Regular user: route to user dashboard bookings view
+    navigate('/dashboard');
   };
 
   return (
     <div className="min-h-screen w-full bg-green-50">
       <Header />
       <div className="p-6">
-      <section className="relative max-w-6xl mx-auto h-56 md:h-72 lg:h-80 rounded-2xl overflow-hidden shadow mt-2">
+      <section className="relative max-w-6xl mx-auto h-auto md:h-72 lg:h-80 rounded-2xl overflow-hidden shadow mt-2">
         <img
           src="https://www.wm.com/content/dam/wm/assets/global/datapage/omr-truck-collecting-containers-curbside-nav-featured.jpg"
           alt="Waste management hero"
           className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-black/40"></div>
-        <div className="relative z-10 h-full flex items-center px-6 md:px-10">
-          <div>
-            <div className="text-xs uppercase tracking-wider text-green-200 mb-1">{domain}</div>
-            <h1 className="text-2xl md:text-3xl font-bold text-white">{heading}</h1>
+        <div className="relative z-10 w-full h-full flex flex-col md:flex-row md:items-center px-6 md:px-10 py-6 md:py-0 gap-3">
+          <div className="flex-1">
+            <h1 className="text-2xl md:text-3xl font-bold text-white">Waste Management Services</h1>
             <p className="text-sm text-green-100 mt-1">Find certified providers near you</p>
           </div>
         </div>
       </section>
 
-      {subcategory && [
-        "Household waste collection",
-        "Recycling pickup (plastic, paper, glass, metal)",
-        "E-waste collection (mobiles, chargers, batteries)",
-        "Garden waste removal",
-        "Waste segregation assistance",
-        "Zero-waste event management",
-      ].includes(subcategory) && (
-        <div className="relative z-20 -mt-8 md:-mt-10">
-          <div className="bg-white rounded-2xl shadow-xl p-5 border border-gray-100 max-w-5xl mx-auto">
-            <div className="text-base font-semibold text-gray-900 mb-3">Check service availability and pricing</div>
-            <div className="flex gap-3">
-              <input
-                className="flex-1 p-3 rounded-lg border bg-white"
-                placeholder="Address (Street, City, PIN)"
-                value={addr}
-                onChange={(e) => setAddr(e.target.value)}
-              />
-              <button
-                onClick={() => {
-                  if (!addr.trim()) {
-                    return setAvailability((prev) => ({ ...prev, global: { ok: false, msg: "Enter address to check availability." } }));
-                  }
-                  const priceDelta = addr.length % 3 === 0 ? 150 : 0;
-                  const base = services[0]?.price || 800;
-                  setAvailability((prev) => ({ ...prev, global: { ok: true, msg: `Available in your area. Estimated price from ₹ ${base + priceDelta}` } }));
-                }}
-                className="bg-gray-800 text-white px-6 py-3 rounded-full hover:bg-gray-900"
-              >
-                Check Availability
-              </button>
-            </div>
-            {availability.global && (
-              <div className={`mt-3 text-sm ${availability.global.ok ? "text-green-700" : "text-red-600"}`}>
-                {availability.global.msg}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Removed availability and pricing box */}
 
-      {/* ⭐ CATEGORY DROPDOWN (left aligned, no shadow) */}
-      <div ref={categoryRef} className="flex justify-start mt-6 mb-3 relative max-w-6xl mx-auto">
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="bg-white px-4 py-2 rounded-lg flex items-center gap-2 font-semibold text-green-800 hover:bg-gray-100 transition border"
-        >
-          {domain} Services <FaChevronDown />
-        </button>
-
-        {isOpen && (
-          <div className="absolute left-0 top-12 bg-white rounded-lg w-56 border z-50">
-            {["Residential", "Commercial", "Municipal"].map((d) => (
-              <button
-                key={d}
-                onClick={() => {
-                  setDomain(d);
-                  setSubcategory("");
-                  setSearchParams({ domain: d.toLowerCase() });
-                  setIsOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2 text-black hover:bg-gray-100 transition ${
-                  domain === d ? "font-bold text-green-700" : ""
-                }`}
-              >
-                {d} Services
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ⭐ SUBCATEGORY DROPDOWN (left aligned, no shadow) */}
-      <div ref={subcategoryRef} className="flex justify-start mt-2 mb-6 relative max-w-6xl mx-auto">
-        <button
-          onClick={() => setIsSubOpen(!isSubOpen)}
-          className="bg-white px-4 py-2 rounded-lg flex items-center gap-2 font-semibold text-green-800 hover:bg-gray-100 transition disabled:opacity-60 disabled:cursor-not-allowed border"
-          disabled={!domain}
-        >
-          {subcategory ? subcategory : "Choose a sub-service"} <FaChevronDown />
-        </button>
-
-        {isSubOpen && (
-          <div className="absolute left-0 top-12 bg-white rounded-lg w-[22rem] border z-50 p-2">
-            <div className="text-xs uppercase text-gray-500 px-3 py-1">Service Experts</div>
-            {[
-              "Home compost bin setup",
-              "Kitchen waste composting",
-              "Garden waste composting",
-              "Society/community composting",
-              "Composting workshops",
-              "Selling organic compost",
-            ].map((sub) => (
-              <button
-                key={sub}
-                onClick={() => {
-                  setSubcategory(sub);
-                  setSearchParams({ domain: domain.toLowerCase(), subcategory: sub });
-                  setIsSubOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2 text-black hover:bg-gray-100 transition ${
-                  subcategory === sub ? "font-bold text-green-700" : ""
-                }`}
-              >
-                {sub}
-              </button>
-            ))}
-
-            <div className="text-xs uppercase text-gray-500 px-3 py-2 mt-2 border-t">Waste Management Service Providers</div>
-            {[
-              "Household waste collection",
-              "Recycling pickup (plastic, paper, glass, metal)",
-              "E-waste collection (mobiles, chargers, batteries)",
-              "Garden waste removal",
-              "Waste segregation assistance",
-              "Zero-waste event management",
-            ].map((sub) => (
-              <button
-                key={sub}
-                onClick={() => {
-                  setSubcategory(sub);
-                  setSearchParams({ domain: domain.toLowerCase(), subcategory: sub });
-                  setIsSubOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2 text-black hover:bg-gray-100 transition ${
-                  subcategory === sub ? "font-bold text-green-700" : ""
-                }`}
-              >
-                {sub}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Removed domain and subcategory dropdowns */}
 
       {/* Steps: Simpler, Safer, Smarter */}
       <section className="max-w-6xl mx-auto pt-10 pb-4">
@@ -652,49 +545,28 @@ export default function ServicesPage() {
         </div>
       </section>
 
-      {/* FILTERS - modern UI, white inputs, auto-apply */}
-      <div className="bg-white p-4 rounded-2xl shadow-md max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-3 mb-8">
-        <input
-          placeholder="Search services..."
-          className="p-2 border rounded-lg bg-white text-gray-900 placeholder:text-gray-400"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      {/* Search bar */}
+      <section className="max-w-6xl mx-auto mt-2 mb-6">
+        <div className="bg-white rounded-xl shadow p-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="Search services, e.g. compost, pickup, e-waste, garden..."
+              className="flex-1 bg-transparent px-3 py-2 outline-none text-gray-800 placeholder:text-gray-400"
+            />
+            <button
+              onClick={() => setKeyword((v) => v.trim())}
+              className="px-5 py-2 rounded-lg bg-green-700 text-white font-semibold hover:bg-green-800"
+            >
+              Search
+            </button>
+          </div>
+        </div>
+      </section>
 
-        <input
-          placeholder="City / PIN"
-          className="p-2 border rounded-lg bg-white text-gray-900 placeholder:text-gray-400"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-        />
-
-        <select
-          className="p-2 border rounded-lg bg-white text-gray-900"
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-        >
-          <option value="">Service Type</option>
-          <option>Home Compost Setup</option>
-          <option>Waste Collection</option>
-          <option>Buy Compost</option>
-          <option>Workshop</option>
-        </select>
-
-        <input
-          placeholder="Min Price"
-          type="number"
-          className="p-2 border rounded-lg bg-white text-gray-900 w-full"
-          value={priceMin}
-          onChange={(e) => setPriceMin(e.target.value)}
-        />
-        <input
-          placeholder="Max Price"
-          type="number"
-          className="p-2 border rounded-lg bg-white text-gray-900 w-full"
-          value={priceMax}
-          onChange={(e) => setPriceMax(e.target.value)}
-        />
-      </div>
+      {/* Removed search and pricing filter box */}
 
       {subcategory && (
         <div className="text-center mt-2 text-sm text-gray-700">
@@ -703,6 +575,13 @@ export default function ServicesPage() {
       )}
 
       {/* CATEGORY MODELS GRID */}
+      {services.length === 0 ? (
+        <div className="max-w-6xl mx-auto mt-8">
+          <div className="bg-white rounded-2xl shadow p-8 text-center text-gray-600">
+            No products found
+          </div>
+        </div>
+      ) : (
       <div className="max-w-6xl mx-auto mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
         {(
           // If subcategory belongs to service experts group, show curated expert cards
@@ -733,6 +612,11 @@ export default function ServicesPage() {
 
             <div className={item.photo ? "pt-4 flex-1" : "pt-10 flex-1"}>
               <h3 className="text-lg font-semibold text-gray-900">{item.title}</h3>
+              {item.category && (
+                <div className="mt-1 inline-block px-2 py-0.5 text-xs rounded bg-green-50 text-green-700 border border-green-200">
+                  {item.category}
+                </div>
+              )}
 
               {item.bullets ? (
                 <ul className="mt-2 text-sm text-gray-700 space-y-1">
@@ -775,6 +659,7 @@ export default function ServicesPage() {
           </div>
         ))}
       </div>
+      )}
             
       {/* MODAL */}
       {selectedService && (
@@ -783,50 +668,93 @@ export default function ServicesPage() {
           onClick={closeModal}
         >
           <div
-            className="bg-white rounded-2xl p-6 w-[90%] max-w-2xl shadow-xl"
+            className="bg-white rounded-2xl p-6 w-[95%] max-w-3xl shadow-xl relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
-              src={
-                selectedService.photos?.[0] ||
-                "https://via.placeholder.com/600"
-              }
-              className="w-full h-60 object-cover rounded-xl"
-            />
-
-            <h2 className="mt-4 text-2xl font-bold text-green-900">
-              {selectedService.title}
-            </h2>
-
-            <p className="text-gray-700 mt-2">
-              {selectedService.description}
-            </p>
-
-            <p className="mt-4 font-bold text-green-700 text-xl">
-              Price: ₹ {selectedService.price}
-            </p>
-
-            <p className="mt-1 text-gray-600">
-              📍 Location: {selectedService.location}
-            </p>
-
-            <div className="mt-1 text-gray-600">
-              👤 Provider: {selectedService.provider?.name || "Unknown"}
-            </div>
-
-            <button
-              onClick={() => handleBookNow(selectedService._id)}
-              className="bg-green-700 text-white w-full py-3 rounded-xl mt-6 hover:bg-green-800 transition"
-            >
-              Book Now
-            </button>
-
             <button
               onClick={closeModal}
-              className="w-full mt-2 text-center text-red-500 font-semibold hover:text-red-700"
+              aria-label="Close"
+              className="absolute top-3 right-3 text-black hover:text-gray-700 text-2xl leading-none"
             >
-              Close
+              ×
             </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <img
+                  src={
+                    (selectedService.images && selectedService.images[0]) ||
+                    selectedService.photos?.[0] ||
+                    "https://via.placeholder.com/600"
+                  }
+                  className="w-full h-60 object-cover rounded-xl"
+                />
+                {Array.isArray(selectedService.images) && selectedService.images.length > 1 && (
+                  <div className="mt-2 grid grid-cols-4 gap-2">
+                    {selectedService.images.slice(1,5).map((img, idx) => (
+                      <img key={idx} src={img} className="w-full h-20 object-cover rounded-lg" />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-green-900">{selectedService.title}</h2>
+                {selectedService.category && (
+                  <div className="mt-1 inline-block px-2 py-0.5 text-xs rounded bg-green-50 text-green-700 border border-green-200">
+                    {selectedService.category}
+                  </div>
+                )}
+                <p className="text-gray-700 mt-2 whitespace-pre-line">{selectedService.description}</p>
+                <div className="mt-3 text-sm text-gray-700 space-y-1">
+                  <div><span className="font-semibold text-gray-900">Price:</span> ₹ {selectedService.price} <span className="text-gray-500">({selectedService.priceType || 'fixed'})</span></div>
+                  <div><span className="font-semibold text-gray-900">Location:</span> {selectedService.location}</div>
+                  <div><span className="font-semibold text-gray-900">Provider:</span> {selectedService.provider?.name || 'Unknown'}</div>
+                  {selectedService.availability && (
+                    <div><span className="font-semibold text-gray-900">Availability:</span> {selectedService.availability}</div>
+                  )}
+                  {Array.isArray(selectedService.serviceArea) && selectedService.serviceArea.length > 0 && (
+                    <div><span className="font-semibold text-gray-900">Service Area:</span> {selectedService.serviceArea.join(', ')}</div>
+                  )}
+                  {Array.isArray(selectedService.tags) && selectedService.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {selectedService.tags.map((t, i) => (
+                        <span key={i} className="px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-700 border">#{t}</span>
+                      ))}
+                    </div>
+                  )}
+                  {Array.isArray(selectedService.features) && selectedService.features.length > 0 && (
+                    <div className="mt-3">
+                      <div className="font-semibold text-gray-900">Features</div>
+                      <ul className="list-disc list-inside text-gray-700 text-sm mt-1">
+                        {selectedService.features.map((f, i) => (
+                          <li key={i}>{f}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {selectedService.specifications && Object.keys(selectedService.specifications).length > 0 && (
+                    <div className="mt-3">
+                      <div className="font-semibold text-gray-900">Specifications</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1 text-sm">
+                        {Object.entries(selectedService.specifications).map(([k, v]) => (
+                          <div key={k} className="bg-gray-50 rounded p-2">
+                            <div className="text-gray-500 text-xs uppercase">{k}</div>
+                            <div className="text-gray-800">{String(v)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => handleBookNow(selectedService._id)}
+                  className="bg-green-700 text-white w-full py-3 rounded-xl mt-6 hover:bg-green-800 transition"
+                >
+                  Book Now
+                </button>
+
+                </div>
+            </div>
           </div>
         </div>
       )}

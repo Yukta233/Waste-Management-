@@ -35,6 +35,7 @@ const serviceSchema = new Schema(
                 'compost-product',   // Buy organic compost
                 'workshop-training', // Workshops / training
                 'waste-collection',  // Legacy/other collection types
+                'ewaste-collection', // E-waste collection
                 'consultation',      // Expert consultation
                 'maintenance',       // Compost maintenance
                 'equipment-rental',  // Equipment rental

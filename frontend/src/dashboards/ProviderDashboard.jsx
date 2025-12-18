@@ -204,16 +204,32 @@ export default function ProviderDashboard() {
     if (!cat) return 'waste-collection';
     const key = String(cat).toLowerCase();
     switch (key) {
+      // Direct supported categories
       case 'home_setup': case 'home-setup': case 'home setup': return 'home-setup';
       case 'kitchen_compost': case 'kitchen-compost': return 'kitchen-compost';
       case 'garden_compost': case 'garden-compost': return 'garden-compost';
       case 'community_compost': case 'community-compost': return 'community-compost';
       case 'workshop': case 'workshop-training': return 'workshop-training';
       case 'sell_compost': case 'sell-compost': case 'compost-product': return 'compost-product';
-      case 'waste_collection': case 'waste-collection': case 'collection': return 'waste-collection';
-      case 'recycling': return 'waste-collection';
-      case 'bulk': return 'waste-collection';
-      default: return key;
+
+      // Collection-style categories collapse to waste-collection
+      case 'waste_collection': case 'waste-collection': case 'collection':
+      case 'recycling': case 'bulk': case 'green': case 'garden': case 'green/garden waste':
+        return 'waste-collection';
+
+      // E-waste variants map to ewaste-collection (backend supported)
+      case 'e-waste': case 'ewaste': case 'e waste':
+      case 'e-waste collection': case 'e waste collection': case 'electronics recycling': case 'electronic-waste':
+        return 'ewaste-collection';
+
+      // Map miscellaneous to others
+      case 'segregation':
+      case 'hazardous':
+      case 'event': case 'zero-waste event': case 'zero waste':
+        return 'others';
+
+      default:
+        return key;
     }
   }
 
@@ -439,20 +455,20 @@ export default function ProviderDashboard() {
       <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={onClose}>
         <div className="w-full max-w-3xl max-h-[90vh] bg-white rounded-xl shadow-lg m-4 flex flex-col" onClick={e => e.stopPropagation()}>
           <div className="px-4 py-3 border-b flex items-center justify-between">
-            <div className="font-semibold">Service details</div>
-            <button className="text-xl" onClick={onClose}>×</button>
+            <div className="font-semibold text-black">Service details</div>
+            <button className="text-xl text-black" onClick={onClose}>×</button>
           </div>
           <div className="p-4 overflow-auto flex-1">
             {loadingDetails && <div>Loading...</div>}
             {errorDetails && <div className="text-red-600">{errorDetails}</div>}
             {!loadingDetails && !errorDetails && localDetails && (
               <div>
-                <h3 className="text-lg font-semibold">{localDetails.title}</h3>
+                <h3 className="text-lg font-semibold text-gray-700">{localDetails.title}</h3>
                 <div className="text-sm text-gray-600">Category: {localDetails.category}</div>
                 <div className="mt-2 text-gray-800">{localDetails.description}</div>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div><div className="text-sm text-gray-500">Price</div><div className="font-medium">₹{localDetails.price}</div></div>
-                  <div><div className="text-sm text-gray-500">Area</div><div className="font-medium">{(localDetails.serviceArea || []).join(', ') || '-'}</div></div>
+                  <div><div className="text-sm text-gray-500">Price</div><div className="font-medium text-gray-600">₹{localDetails.price}</div></div>
+                  <div><div className="text-sm text-gray-500">Area</div><div className="font-medium text-gray-600">{(localDetails.serviceArea || []).join(', ') || '-'}</div></div>
                 </div>
                 {Array.isArray(localDetails.images) && localDetails.images.length > 0 && (
                   <div className="mt-3 grid grid-cols-2 gap-2">

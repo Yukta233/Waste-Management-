@@ -13,6 +13,14 @@ const FrontToModelCategory = {
   community_compost: 'community-compost',
   workshop: 'workshop-training',
   sell_compost: 'compost-product',
+  // e-waste mappings
+  'e-waste collection': 'ewaste-collection',
+  'e waste collection': 'ewaste-collection',
+  'e-waste': 'ewaste-collection',
+  'e waste': 'ewaste-collection',
+  'ewaste': 'ewaste-collection',
+  'electronics recycling': 'ewaste-collection',
+  'electronic-waste': 'ewaste-collection',
 };
 const mapCategory = (input) => {
   if (!input) return input;
@@ -66,7 +74,9 @@ const createService = asyncHandler(async (req, res) => {
         // Extended to support mapped frontend categories
         'kitchen-compost',
         'garden-compost',
-        'community-compost'
+        'community-compost',
+        // New: e-waste dedicated category
+        'ewaste-collection'
     ];
     
     if (!validCategories.includes(normalizedCategory)) {

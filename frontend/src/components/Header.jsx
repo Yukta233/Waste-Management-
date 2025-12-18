@@ -4,20 +4,15 @@ import { Link, useNavigate } from "react-router-dom";
 import NotificationBell from "./NotificationBell";
 
 export default function Header() {
-  const [openDropdown, setOpenDropdown] = useState(false);
-  const [openUserMenu, setOpenUserMenu] = useState(false);
+    const [openUserMenu, setOpenUserMenu] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const dropdownRef = useRef(null);
-  const userMenuRef = useRef(null);
+    const userMenuRef = useRef(null);
   const navigate = useNavigate();
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
 
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setOpenDropdown(false);
-      }
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
         setOpenUserMenu(false);
       }
@@ -64,11 +59,7 @@ export default function Header() {
     navigate('/');
   };
 
-  const handleOptionSelect = (domain) => {
-    navigate(`/services?domain=${domain.toLowerCase()}`);
-    setOpenDropdown(false);
-  };
-
+  
   return (
     <header className="w-full flex justify-center mt-4">
       <div className="w-[95%] bg-white rounded-3xl py-4 px-8 flex items-center justify-between relative">
@@ -86,35 +77,18 @@ export default function Header() {
         </Link>
 
         {/* NAVIGATION */}
-        <nav className="flex items-center space-x-3 relative" ref={dropdownRef}>
+        <nav className="flex items-center space-x-3 relative">
           
           {/* SERVICE LISTING BUTTON */}
           <button
             className="px-6 py-2 rounded-full border border-green-600 text-green-600 font-semibold bg-white hover:bg-green-50 transition"
-            onMouseEnter={() => setOpenDropdown(true)}
+            onClick={() => navigate('/services')}
           >
             Service Listing
           </button>
 
           {/* DROPDOWN MENU */}
-          {openDropdown && (
-            <div
-              onMouseLeave={() => setOpenDropdown(false)}
-              className="absolute top-14 left-0 w-56 bg-white shadow-lg rounded-xl border border-gray-200 z-50"
-            >
-              {["Residential", "Commercial", "Municipal"].map((option) => (
-                <div
-                  key={option}
-                  onClick={() => handleOptionSelect(option)}
-                  className="px-4 py-3 cursor-pointer text-gray-800 hover:bg-gray-100 transition select-none"
-                  style={{ outline: "none" }}
-                >
-                  {option}
-                </div>
-              ))}
-            </div>
-          )}
-
+          
           {/* SELL WASTE */}
           <a
             href="#"
