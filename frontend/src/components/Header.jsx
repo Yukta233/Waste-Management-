@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { FaUser } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import NotificationBell from "./NotificationBell";
+import logo from "../assets/swachhsetu.png";
 
 export default function Header() {
     const [openUserMenu, setOpenUserMenu] = useState(false);
@@ -66,13 +67,9 @@ export default function Header() {
 
         {/* LOGO */}
         <Link to="/" className="flex items-center space-x-3 hover:opacity-90 transition">
-          <img
-            src="/logo.png"
-            alt="logo"
-            className="w-10 h-10"
-          />
+          <img src={logo} alt="SwachhSetu logo" className="w-18 h-18 md:w-20 md:h-26 object-contain" />
           <h1 className="text-3xl font-bold text-gray-800">
-            Waste<span className="text-green-600">Manage</span>
+            Swachh<span className="text-green-600">Setu</span>
           </h1>
         </Link>
 

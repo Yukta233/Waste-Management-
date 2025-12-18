@@ -139,7 +139,7 @@ export default function CreateUserAccount() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-white p-8">
             <div className="w-full max-w-3xl bg-white rounded-3xl shadow-xl p-10 border border-gray-100 ring-1 ring-gray-100">
-                <h1 className="text-3xl font-extrabold text-green-600 mb-8 text-center">Create Your WasteCare Account</h1>
+                <h1 className="text-3xl font-extrabold text-green-600 mb-8 text-center">Create Your SwachhSetu Account</h1>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center mb-6">
                     <label className="text-gray-700 font-semibold sm:text-left text-sm">Select User Type</label>
                     <div className="sm:col-span-2 relative">

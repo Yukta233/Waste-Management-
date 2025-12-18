@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FaLeaf, FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowLeft } from 'react-icons/fa';
+import logo from './assets/swachhsetu.png';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -108,12 +109,12 @@ export default function LoginPage() {
 
           {/* Header */}
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-green-100">
-              <FaLeaf className="h-7 w-7 text-green-600" />
+            <div className="w-16 h-16 flex items-center justify-center rounded-xl bg-white">
+              <img src={logo} alt="Swachh Setu" className="h-16 w-18 object-contain" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-800">
-                Sign in to WasteCare
+                Sign in to SwachhSetu
               </h1>
               <p className="text-xs text-gray-500 mt-1">
                 Select your role and access your dashboard.

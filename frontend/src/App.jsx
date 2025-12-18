@@ -59,7 +59,7 @@ function HomeLanding() {
       {/* WHY CHOOSE SECTION */}
       <section className="px-6 md:px-10 pt-20 pb-40">
         <h2 className="text-4xl font-extrabold text-center mb-14 text-gray-900">
-          Why Choose EcoMarket?
+          Why Choose SwachhSetu?
         </h2>
 
         <div className="cards flex flex-row flex-wrap justify-center gap-6">

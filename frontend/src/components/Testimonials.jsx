@@ -38,7 +38,7 @@ export default function Testimonials() {
     <section className="bg-white py-28 px-6 md:px-10 overflow-hidden">
       {/* Heading */}
       <h2 className="text-4xl font-extrabold text-center text-gray-900 mb-6">
-        What People Say About EcoMarket
+        What People Say About SwachhSetu 
       </h2>
 
       <p className="text-center text-gray-600 max-w-2xl mx-auto mb-16">
