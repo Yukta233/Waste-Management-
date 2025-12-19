@@ -13,7 +13,7 @@ const Footer = () => {
 
           {/* Logo / Brand */}
           <div className="flex flex-col max-w-xs">
-            <h1 className="text-2xl font-bold">EcoMarket</h1>
+            <h1 className="text-2xl font-bold">SwachhSetu</h1>
             <p className="text-sm mt-1">
               Building a Greener Tomorrow. Transforming waste into valuable resources
               while supporting sustainable communities and eco-friendly practices.
@@ -25,12 +25,6 @@ const Footer = () => {
             <div>
               <h4 className="font-semibold mb-2">Quick Links</h4>
               <ul className="space-y-1 text-sm">
-                <li>
-                  <Link to="/aboutus" className="hover:underline">About</Link>
-                </li>
-                <li>
-                  <Link to="/marketplace" className="hover:underline">Marketplace</Link>
-                </li>
                 <li>
                   <Link to="/services" className="hover:underline">Service Listing</Link>
                 </li>
@@ -85,7 +79,7 @@ const Footer = () => {
 
         {/* Bottom section */}
         <div className="border-t border-green-500 pt-6 text-center text-sm">
-          © 2025 EcoMarket — All Rights Reserved.
+          © 2025 SwachhSetu — All Rights Reserved.
         </div>
       </div>
     </footer>

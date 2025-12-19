@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FaUser } from "react-icons/fa";
+import { FaUser, FaBars, FaTimes } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import NotificationBell from "./NotificationBell";
 import logo from "../assets/swachhsetu.png";
 
 export default function Header() {
-    const [openUserMenu, setOpenUserMenu] = useState(false);
+  const [openUserMenu, setOpenUserMenu] = useState(false);
+  const [mobileMenu, setMobileMenu] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-    const userMenuRef = useRef(null);
+  const userMenuRef = useRef(null);
   const navigate = useNavigate();
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
 
-  // Close dropdown when clicking outside
+  const API_BASE =
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api/v1";
+
+  /* Close dropdown */
   useEffect(() => {
     function handleClickOutside(e) {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
@@ -22,123 +26,157 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Load current user from storage
+  /* Load user */
   useEffect(() => {
-    const stored = localStorage.getItem('user') || sessionStorage.getItem('user');
+    const stored =
+      localStorage.getItem("user") || sessionStorage.getItem("user");
     if (stored) {
-      try { setCurrentUser(JSON.parse(stored)); } catch {}
-    } else {
-      setCurrentUser(null);
+      try {
+        setCurrentUser(JSON.parse(stored));
+      } catch {}
     }
   }, []);
 
   const roleToPath = (role) => {
     switch (role) {
-      case 'admin': return '/admin';
-      case 'expert': return '/expert';
-      case 'provider': return '/provider';
-      default: return '/dashboard';
+      case "admin":
+        return "/admin";
+      case "expert":
+        return "/expert";
+      case "provider":
+        return "/provider";
+      default:
+        return "/dashboard";
     }
   };
 
   const handleLogout = async () => {
     try {
       await fetch(`${API_BASE}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
+        method: "POST",
+        credentials: "include",
       });
     } catch (_) {}
-    // Clear storage
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    sessionStorage.removeItem('accessToken');
-    sessionStorage.removeItem('refreshToken');
-    sessionStorage.removeItem('user');
+    localStorage.clear();
+    sessionStorage.clear();
     setCurrentUser(null);
-    setOpenUserMenu(false);
-    navigate('/');
+    navigate("/");
   };
 
-  
   return (
-    <header className="w-full flex justify-center mt-4">
-      <div className="w-[95%] bg-white rounded-3xl py-4 px-8 flex items-center justify-between relative">
-
-        {/* LOGO */}
-        <Link to="/" className="flex items-center space-x-3 hover:opacity-90 transition">
-          <img src={logo} alt="SwachhSetu logo" className="w-18 h-18 md:w-20 md:h-26 object-contain" />
-          <h1 className="text-3xl font-bold text-gray-800">
-            Swachh<span className="text-green-600">Setu</span>
-          </h1>
-        </Link>
-
-        {/* NAVIGATION */}
-        <nav className="flex items-center space-x-3 relative">
-          
-          {/* SERVICE LISTING BUTTON */}
-          <button
-            className="px-6 py-2 rounded-full border border-green-600 text-green-600 font-semibold bg-white hover:bg-green-50 transition"
-            onClick={() => navigate('/services')}
-          >
-            Service Listing
-          </button>
-
-          {/* DROPDOWN MENU */}
-          
-          {/* SELL WASTE */}
-          <a
-            href="#"
-            className="px-6 py-2 rounded-full border border-green-600 text-green-600 font-semibold bg-white hover:bg-green-50 transition"
-          >
-            Sell Waste
-          </a>
-        </nav>
-
-        {/* AUTH AREA */}
-        {currentUser ? (
-          <div className="flex items-center gap-3" ref={userMenuRef}>
-            <NotificationBell token={localStorage.getItem('token') || localStorage.getItem('accessToken') || sessionStorage.getItem('token') || sessionStorage.getItem('accessToken')} />
-            {/* User Menu */}
-            <button
-              onClick={() => setOpenUserMenu((v) => !v)}
-              className="px-4 py-2 rounded-full border border-green-600 bg-white text-green-700 font-semibold hover:bg-green-50 transition"
-            >
-              <span className="hidden sm:inline">{currentUser.fullName || currentUser.name || 'User'}</span>
-              <span className="sm:hidden">Dashboard</span>
-            </button>
-            {openUserMenu && (
-              <div className="absolute top-16 right-40 sm:right-44 bg-white border border-gray-200 rounded-xl shadow z-50 w-64 p-3">
-                <div className="text-xs text-gray-500">Signed in as</div>
-                <div className="font-semibold text-gray-800 truncate">{currentUser.fullName || currentUser.name || 'User'}</div>
-                <div className="text-sm text-gray-600 truncate">{currentUser.email}</div>
-                <button
-                  onClick={() => navigate(roleToPath(currentUser.role))}
-                  className="mt-3 w-full px-4 py-2 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700"
-                >
-                  Go to Dashboard
-                </button>
-              </div>
-            )}
-            {/* Logout */}
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 rounded-full border border-red-500 bg-white text-red-600 font-semibold hover:bg-red-50 transition"
-            >
-              Logout
-            </button>
+    <>
+      {/* ===== NAVBAR ===== */}
+      <header className="sticky top-0 w-full z-50 flex justify-center">
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="w-[96%] bg-white rounded-2xl px-6 py-2.5 flex items-center justify-between shadow-sm"
+        >
+          {/* LOGO (left) */}
+          <div className="flex-1">
+            <Link to="/" className="flex items-center gap-2">
+              <img
+                src={logo}
+                alt="SwachhSetu"
+                className="w-12 h-12 object-contain"
+              />
+              <h1 className="text-2xl font-bold text-gray-800">
+                Swachh<span className="text-green-600">Setu</span>
+              </h1>
+            </Link>
           </div>
-        ) : (
-          <Link
-            to="/login"
-            className="flex items-center space-x-2 px-6 py-2 rounded-full border border-green-600 bg-white text-green-600 font-semibold hover:bg-green-50 transition"
-          >
-            <FaUser className="text-lg text-green-600" />
-            <span>Login</span>
-          </Link>
-        )}
 
-      </div>
-    </header>
+          {/* DESKTOP NAV (center) */}
+          <nav className="hidden md:flex flex-1 items-center justify-center gap-3">
+            <button
+              onClick={() => navigate("/services")}
+              className="px-5 py-1.5 rounded-full border border-green-600 text-green-600 font-semibold hover:bg-green-50 transition"
+            >
+              Service Listing
+            </button>
+
+            <button
+              onClick={() => navigate("/aboutus")}
+              className="px-5 py-1.5 rounded-full border border-green-600 text-green-600 font-semibold hover:bg-green-50 transition"
+            >
+              About
+            </button>
+          </nav>
+
+          {/* AUTH (right) */}
+          <div className="hidden md:flex flex-1 items-center justify-end gap-3" ref={userMenuRef}>
+            {currentUser ? (
+              <>
+                <NotificationBell
+                  token={
+                    localStorage.getItem("accessToken") ||
+                    sessionStorage.getItem("accessToken")
+                  }
+                />
+
+                <button
+                  onClick={() => setOpenUserMenu(!openUserMenu)}
+                  className="px-4 py-1.5 rounded-full border border-green-600 text-green-700 font-semibold hover:bg-green-50"
+                >
+                  {currentUser.fullName || "User"}
+                </button>
+
+                <AnimatePresence>
+                  {openUserMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="absolute top-16 right-32 bg-white border rounded-xl shadow w-64 p-4"
+                    >
+                      <p className="text-xs text-gray-500">Signed in as</p>
+                      <p className="font-semibold truncate">
+                        {currentUser.email}
+                      </p>
+
+                      <button
+                        onClick={() =>
+                          navigate(roleToPath(currentUser.role))
+                        }
+                        className="mt-3 w-full py-2 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700"
+                      >
+                        Go to Dashboard
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-1.5 rounded-full border border-red-500 text-red-600 hover:bg-red-50"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                className="flex items-center gap-2 px-5 py-1.5 rounded-full border border-green-600 text-green-600 font-semibold hover:bg-green-50"
+              >
+                <FaUser />
+                Login
+              </Link>
+            )}
+          </div>
+
+          {/* MOBILE TOGGLE */}
+          <button
+            className="md:hidden text-xl text-green-600"
+            onClick={() => setMobileMenu(!mobileMenu)}
+          >
+            {mobileMenu ? <FaTimes /> : <FaBars />}
+          </button>
+        </motion.div>
+      </header>
+
+      {/* ===== GLOBAL SPACER (IMPORTANT FIX) ===== */}
+      
+      {/* This ensures page content never hides behind navbar */}
+    </>
   );
 }
