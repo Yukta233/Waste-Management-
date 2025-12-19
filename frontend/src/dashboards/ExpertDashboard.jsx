@@ -92,7 +92,7 @@ export default function ExpertDashboard() {
 
   // Data stores
   const [overview, setOverview] = useState({ activeServices: 0, upcoming: 0, workshops: 0, compostSoldKg: 0, avgRating: 0 });
-  const [profile, setProfile] = useState({ fullName: '', expertiseInput: '', experienceYears: '', certifications: '', bio: '', cities: '', avatarUrl: '' });
+  const [profile, setProfile] = useState({ fullName: '', expertiseInput: '', experienceYears: '', certifications: '', bio: '', cities: '', avatarUrl: '', profilePhoto: '' });
   const [services, setServices] = useState([]); // expert-owned services
   const [lastAddedService, setLastAddedService] = useState(null);
   const [showServicePreview, setShowServicePreview] = useState(false);
@@ -139,7 +139,9 @@ export default function ExpertDashboard() {
           }
         } catch {}
         // Profile
-        const me = await api('/users/profile', { token });
+        const meResp = await api('/users/profile', { token });
+        const me = meResp?.data || meResp?.user || meResp;
+        const imgUrl = me?.avatar?.url || me?.avatar || me?.profilePhoto || me?.profile_image || me?.image || me?.photo || '';
         if (!profileLoaded && !isEditingProfileRef.current) {
           setProfile({
             fullName: me?.fullName || me?.name || '',
@@ -147,8 +149,9 @@ export default function ExpertDashboard() {
             experienceYears: me?.experienceYears || '',
             certifications: me?.certifications || '',
             bio: me?.bio || '',
-            cities: (me?.citiesServed || []).join(', '),
-            avatarUrl: me?.avatar || '',
+            cities: (me?.serviceArea || me?.citiesServed || me?.cities || []).join(', '),
+            avatarUrl: imgUrl,
+            profilePhoto: imgUrl,
           });
           setProfileLoaded(true);
         }
@@ -514,14 +517,7 @@ export default function ExpertDashboard() {
     if (!showBookingDetails) setSelectedBooking(null);
   }, [showBookingDetails]);
 
-  return (
-    <>
-      {showBookingDetails && selectedBooking && (
-        <BookingDetailsModal booking={selectedBooking} onClose={() => setShowBookingDetails(false)} />
-      )}
-    </>
-  );
-
+  
 
   function EarningsSection() {
     return (
@@ -564,6 +560,7 @@ export default function ExpertDashboard() {
     const [form, setForm] = useState(profile);
     const [editingLocal, setEditingLocal] = useState(false);
     const [fieldEdit, setFieldEdit] = useState({});
+    const [avatarFile, setAvatarFile] = useState(null);
 
     const storageKey = useMemo(() => user?._id ? `profileFieldReadOnly:${user._id}` : null, [user?._id]);
 
@@ -619,10 +616,73 @@ export default function ExpertDashboard() {
     };
 
     const onSubmit = async (e) => {
-      await saveProfile(e, form);
-      const nextFlags = computeDefaultFlags(form);
-      setFieldEdit(nextFlags);
-      saveFlags(nextFlags);
+      e?.preventDefault?.();
+      try {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
+        // Build payload for backend-supported fields
+        const update = {
+          fullName: form.fullName,
+          bio: form.bio,
+          expertise: String(form.expertiseInput || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean),
+          serviceArea: String(form.cities || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean),
+        };
+
+        // Update text fields
+        await api('/users/profile', { method: 'PUT', body: update, token });
+
+        // Upload profile photo if provided (separate endpoint)
+        if (avatarFile) {
+          const fd = new FormData();
+          fd.append('profilePhoto', avatarFile);
+          const respPhoto = await fetch(`${API_BASE}/users/profile/photo`, {
+            method: 'PATCH',
+            body: fd,
+            credentials: 'include',
+          });
+          if (!respPhoto.ok) {
+            const t = await respPhoto.text();
+            throw new Error(t || 'Failed to upload profile photo');
+          }
+        }
+
+        // Fetch fresh profile from server to reflect saved changes
+        const fresh = await api('/users/profile', { token });
+        const me = fresh?.data || fresh?.user || fresh;
+        const imgUrl = me?.avatar?.url || me?.avatar || me?.profilePhoto || me?.profile_image || me?.image || me?.photo || '';
+        setProfile(prev => ({
+          ...prev,
+          fullName: me?.fullName || prev.fullName,
+          bio: me?.bio ?? prev.bio,
+          expertiseInput: (me?.expertise || []).join(', '),
+          cities: (me?.serviceArea || me?.citiesServed || me?.cities || []).join(', '),
+          avatarUrl: imgUrl || prev.avatarUrl,
+          profilePhoto: imgUrl || prev.profilePhoto,
+        }));
+
+        setIsEditingProfile(false);
+        isEditingProfileRef.current = false;
+        setEditingLocal(false);
+        setAvatarFile(null);
+
+        const nextFlags = computeDefaultFlags({
+          ...form,
+          fullName: me?.fullName || form.fullName,
+          bio: me?.bio ?? form.bio,
+          expertiseInput: (me?.expertise || []).join(', '),
+          cities: (me?.serviceArea || []).join(', '),
+        });
+        setFieldEdit(nextFlags);
+        saveFlags(nextFlags);
+      } catch (err) {
+        console.error('Failed to update profile', err);
+        alert(err.message || 'Failed to update profile');
+      }
     };
 
     const ReadOnlyRow = ({ label, value, onEdit, className }) => (
@@ -636,55 +696,84 @@ export default function ExpertDashboard() {
     );
 
     return (
-      <Section title="My Profile">
-        <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {fieldEdit.fullName ? (
+      <Section
+        title="My Profile"
+        actions={!isEditingProfile ? (
+          <button type="button" className="px-3 py-1.5 rounded-lg border text-sm text-black" onClick={() => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); }}>
+            Edit
+          </button>
+        ) : null}
+      >
+        <form id="profile-edit-form" onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Left: Avatar */}
+          <div className="md:col-span-1">
+            <span className="block text-sm text-gray-700">Profile image</span>
+            <div className="mt-1 flex flex-col items-start gap-2">
+              <img src={profile?.profilePhoto || profile?.avatarUrl || '/placeholder-avatar.png'} alt="profile" className="h-28 w-28 rounded-full object-cover" />
+              {isEditingProfile && (
+                <input type="file" accept="image/*" onChange={(e) => setAvatarFile(e.target.files?.[0] || null)} />
+              )}
+            </div>
+          </div>
+
+          {/* Right: Details */}
+          <div className="md:col-span-2 grid grid-cols-1 gap-2 w-full md:max-w-xl">
+
+          {isEditingProfile || fieldEdit.fullName ? (
             <Input label="Name" value={form.fullName || ''} onChange={e => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); setForm(prev => ({ ...prev, fullName: e.target.value })); }} />
           ) : (
-            <ReadOnlyRow label="Name" value={profile.fullName} onEdit={() => toggleEdit('fullName', true)} />
-          )}
-
-          {fieldEdit.experienceYears ? (
-            <Input label="Years of experience" type="text" value={form.experienceYears || ''} onChange={e => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); setForm(prev => ({ ...prev, experienceYears: e.target.value })); }} />
-          ) : (
-            <ReadOnlyRow label="Years of experience" value={profile.experienceYears} onEdit={() => toggleEdit('experienceYears', true)} />
-          )}
-
-          {fieldEdit.expertiseInput ? (
-            <Input label="Expertise areas (comma)" value={form.expertiseInput || ''} onChange={e => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); setForm(prev => ({ ...prev, expertiseInput: e.target.value })); }} />
-          ) : (
-            <ReadOnlyRow label="Expertise areas" value={profile.expertiseInput} onEdit={() => toggleEdit('expertiseInput', true)} />
-          )}
-
-          {fieldEdit.certifications ? (
-            <Input label="Certifications (optional)" value={form.certifications || ''} onChange={e => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); setForm(prev => ({ ...prev, certifications: e.target.value })); }} />
-          ) : (
-            <ReadOnlyRow label="Certifications" value={profile.certifications} onEdit={() => toggleEdit('certifications', true)} />
-          )}
-
-          {fieldEdit.cities ? (
-            <Input label="Cities served (comma)" value={form.cities || ''} onChange={e => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); setForm(prev => ({ ...prev, cities: e.target.value })); }} />
-          ) : (
-            <ReadOnlyRow label="Cities served" value={profile.cities} onEdit={() => toggleEdit('cities', true)} />
-          )}
-
-          {fieldEdit.avatarUrl ? (
-            <Input label="Profile image URL" value={form.avatarUrl || ''} onChange={e => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); setForm(prev => ({ ...prev, avatarUrl: e.target.value })); }} />
-          ) : (
-            <ReadOnlyRow label="Profile image URL" value={profile.avatarUrl} onEdit={() => toggleEdit('avatarUrl', true)} />
-          )}
-
-          {fieldEdit.bio ? (
-            <TextArea label="Bio / About" value={form.bio || ''} onChange={e => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); setForm(prev => ({ ...prev, bio: e.target.value })); }} />
-          ) : (
-            <div className="md:col-span-2">
-              <ReadOnlyRow label="Bio / About" value={profile.bio} onEdit={() => toggleEdit('bio', true)} />
+            <div className="md:col-span-1">
+              <div className="text-sm text-gray-500">Name</div>
+              <div className="text-gray-900 font-medium break-words">{profile.fullName || '-'}</div>
             </div>
           )}
 
-          <div className="md:col-span-2 flex justify-end gap-2">
-            <button type="button" className="px-4 py-2 rounded-lg border text-black" onClick={onCancel}>Cancel</button>
-            <button type="submit" className="px-4 py-2 rounded-lg bg-emerald-600 text-white">Save</button>
+          {isEditingProfile || fieldEdit.experienceYears ? (
+            <Input label="Years of experience" type="text" value={form.experienceYears || ''} onChange={e => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); setForm(prev => ({ ...prev, experienceYears: e.target.value })); }} />
+          ) : (
+            <div className="md:col-span-1">
+              <div className="text-sm text-gray-500">Years of experience</div>
+              <div className="text-gray-900 font-medium break-words">{profile.experienceYears || '-'}</div>
+            </div>
+          )}
+
+          {isEditingProfile || fieldEdit.expertiseInput ? (
+            <Input label="Expertise areas (comma)" value={form.expertiseInput || ''} onChange={e => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); setForm(prev => ({ ...prev, expertiseInput: e.target.value })); }} />
+          ) : (
+            <div className="md:col-span-1">
+              <div className="text-sm text-gray-500">Expertise areas</div>
+              <div className="text-gray-900 font-medium break-words">{profile.expertiseInput || '-'}</div>
+            </div>
+          )}
+
+          
+          {isEditingProfile || fieldEdit.cities ? (
+            <Input label="Cities served (comma)" value={form.cities || ''} onChange={e => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); setForm(prev => ({ ...prev, cities: e.target.value })); }} />
+          ) : (
+            <div className="md:col-span-1">
+              <div className="text-sm text-gray-500">Cities served</div>
+              <div className="text-gray-900 font-medium break-words">{profile.cities || '-'}</div>
+            </div>
+          )}
+
+          {/* Bio */}
+          {isEditingProfile || fieldEdit.bio ? (
+            <TextArea label="Bio / About" value={form.bio || ''} onChange={e => { setIsEditingProfile(true); isEditingProfileRef.current = true; setEditingLocal(true); setForm(prev => ({ ...prev, bio: e.target.value })); }} />
+          ) : (
+            <div className="md:col-span-2">
+              <div className="text-sm text-gray-500">Bio / About</div>
+              <div className="text-gray-900 font-medium break-words">{profile.bio || '-'}</div>
+            </div>
+          )}
+          </div>
+
+          <div className="md:col-span-3 flex justify-end gap-2">
+            {isEditingProfile ? (
+              <>
+                <button type="button" className="px-4 py-2 rounded-lg border text-black" onClick={onCancel}>Cancel</button>
+                <button type="submit" className="px-4 py-2 rounded-lg bg-emerald-600 text-white">Save</button>
+              </>
+            ) : null}
           </div>
         </form>
       </Section>
@@ -984,9 +1073,13 @@ export default function ExpertDashboard() {
             </div>
           )}
 
+          {showBookingDetails && selectedBooking && (
+            <BookingDetailsModal booking={selectedBooking} onClose={() => setShowBookingDetails(false)} />
+          )}
+
           {loading && !isEditingService && (
              <div className="fixed inset-0 z-[5000] bg-black/20 flex items-center justify-center">
-              <div className="bg-white px-4 py-3 rounded-lg shadow pointer-events-auto">Loading...</div>
+              <div className="bg-white px-4 py-3 rounded-lg shadow pointer-events-auto text-gray-900">Loading...</div>
             </div>
           )}
         </main>
