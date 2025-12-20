@@ -29,10 +29,10 @@ const Footer = () => {
                   <Link to="/services" className="hover:underline">Service Listing</Link>
                 </li>
                 <li>
-                  <Link to="/ContactUs  " className="hover:underline">Contact</Link>
+                  <Link to="/ContactUs" className="hover:underline">Contact</Link>
                 </li>
                 <li>
-                  <Link to="/blog  " className="hover:underline">Blog</Link>
+                  <Link to="/blog" className="hover:underline">Blog</Link>
                 </li>
               </ul>
             </div>

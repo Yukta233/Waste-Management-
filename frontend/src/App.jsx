@@ -15,10 +15,10 @@ import ExpertDashboard from "./dashboards/ExpertDashboard";
 import ProviderDashboard from "./dashboards/ProviderDashboard";
 import UserDashboard from "./dashboards/UserDashboard";
 import BookingPage from "./pages/BookingPage";
-import BlogPage from "./Blog";
+import BlogPage from "./blog";
 import ForgotPassword from "./ForgotPassword.jsx";
 import ResetPassword from "./ResetPassword.jsx";
-
+import WhyChooseUs from "./components/whychooseus.jsx";
 function HomeLanding() {
   const navigate = useNavigate();
   return (
@@ -47,7 +47,10 @@ function HomeLanding() {
           >
             Explore Marketplace
           </button>
-          <button className="px-10 py-4 bg-white text-green-600 border border-green-600 rounded-xl text-lg font-semibold hover:bg-green-600 hover:text-white transition shadow hover-lift">
+          <button
+            className="px-10 py-4 bg-white text-green-600 border border-green-600 rounded-xl text-lg font-semibold hover:bg-green-600 hover:text-white transition shadow hover-lift"
+            onClick={() => navigate('/blog')}
+          >
             Learn More
           </button>
         </div>
@@ -57,43 +60,7 @@ function HomeLanding() {
       <HowItWorks />
 
       {/* WHY CHOOSE SECTION */}
-      <section className="px-6 md:px-10 pt-20 pb-40">
-        <h2 className="text-4xl font-extrabold text-center mb-14 text-gray-900">
-          Why Choose SwachhSetu?
-        </h2>
-
-        <div className="cards flex flex-row flex-wrap justify-center gap-6">
-          {[
-            {
-              title: "Certified Recyclers",
-              desc: "We partner only with verified recycling experts for sustainable practices.",
-            },
-            {
-              title: "Transparent Pricing",
-              desc: "Real-time waste value tracking ensures fair pricing for everyone.",
-            },
-            {
-              title: "Digital Tracking",
-              desc: "Track every waste pickup and recycling journey digitally.",
-            },
-            {
-              title: "Reliable Support",
-              desc: "Our team is always available to assist users and recyclers promptly.",
-            },
-          ].map((card, index) => (
-            <div
-              key={index}
-              className="card p-6 bg-white/20 backdrop-blur-xl rounded-2xl shadow-lg border border-green-300 transition"
-              style={{ width: "260px", minHeight: "180px" }}
-            >
-              <h3 className="text-2xl font-bold mb-2 text-green-700">
-                {card.title}
-              </h3>
-              <p className="text-gray-700 text-md">{card.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <WhyChooseUs />
 
       {/* TESTIMONIALS */}
       <Testimonials />

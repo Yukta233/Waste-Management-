@@ -16,7 +16,7 @@ import Header from "./components/Header";
 import { Link } from "react-router-dom";
 import yuktaImg from "./assets/yukta.jpg";
 import priyanshuImg from "./assets/priyanshu.png";
-// import sohamImg from "../assets/soham.jpg";
+import sohamImg from "./assets/soham.jpg";
 
 
 // -------------------- ANIMATION VARIANTS --------------------
@@ -26,7 +26,7 @@ const fadeInUp = {
 };
 
 // -------------------- TEAM CARD COMPONENT --------------------
-const TeamCard = ({ name, role, imagePath }) => {
+const TeamCard = ({ name, role, imagePath, bio }) => {
   return (
     <FlipCardWrapper
       whileHover={{ y: -10 }}
@@ -48,7 +48,7 @@ const TeamCard = ({ name, role, imagePath }) => {
             <h4 className="name text-white">{name}</h4>
             <div className="h-px w-12 bg-white/30 my-3 mx-auto" />
             <p className="desc text-white/90 text-sm text-center px-4">
-              Building the digital bridge between eco-experts and citizens to make sustainable living effortless.
+              {bio}
             </p>
           </div>
         </div>
@@ -251,20 +251,23 @@ function AboutUs() {
       <div className="grid md:grid-cols-3 gap-12 place-items-center">
   <TeamCard
     name="Yukta Shree"
-    role="Founder & Eco Advocate"
+    bio="Product lead focused on building simple, accessible flows that connect households with verified recyclers. Drives UX and platform quality."
+    role="Team Member"
     imagePath={yuktaImg}
   />
 
   <TeamCard
     name="Priyanshu Singh"
-    role="Waste Mgmt. Expert"
+    bio="Manages community engagement and awareness initiatives, ensuring effective communication between users, service providers, and sustainability partners to promote responsible waste practices."  
+    role="Team Leader"
     imagePath={priyanshuImg}
   />
 
   <TeamCard
     name="Soham Ghosh"
-    role="Community Lead"
-    // imagePath={sohamImg}
+    bio="Leads the vision and strategy of the platform with a strong focus on sustainability, digital innovation, and community impact."
+    role="Team Member"
+    imagePath={sohamImg}
   />
 </div>
 
