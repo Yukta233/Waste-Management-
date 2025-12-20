@@ -390,7 +390,10 @@ const getServicesByProvider = asyncHandler(async (req, res) => {
 
 const updateServiceStatus = asyncHandler(async (req, res) => {
     // Only admin can update service status
-    if (!req.user.isAdmin()) {
+    const role = req.user?.role;
+    const byMethod = typeof req.user?.isAdmin === 'function' ? req.user.isAdmin() : false;
+    const byRole = typeof role === 'string' && role.toLowerCase() === 'admin';
+    if (!(byMethod || byRole)) {
         throw new ApiError(403, "Admin access required");
     }
 

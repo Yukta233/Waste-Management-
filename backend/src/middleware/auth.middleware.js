@@ -23,13 +23,19 @@ export const verifyJWT = asyncHandler(async (req, _, next) => {
         req.user = user;
         next();
     } catch (error) {
-        throw new ApiError(401, error?.message || "Invalid access token");
+        // Normalize JWT errors to a consistent 401 without leaking internal details
+        throw new ApiError(401, "Invalid access token");
     }
 });
 
 // Admin middleware
 export const requireAdmin = asyncHandler(async (req, res, next) => {
-    if (!req.user || !req.user.isAdmin()) {
+    // Be robust to user documents that may not have instance methods or have role casing issues
+    const role = req.user?.role;
+    const byMethod = typeof req.user?.isAdmin === 'function' ? req.user.isAdmin() : false;
+    const byRole = typeof role === 'string' && role.toLowerCase() === 'admin';
+
+    if (!req.user || !(byMethod || byRole)) {
         throw new ApiError(403, "Admin access required");
     }
     next();

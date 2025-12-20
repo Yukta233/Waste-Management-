@@ -19,6 +19,7 @@ import BlogPage from "./blog";
 import ForgotPassword from "./ForgotPassword.jsx";
 import ResetPassword from "./ResetPassword.jsx";
 import WhyChooseUs from "./components/whychooseus.jsx";
+import ProfilesDirectory from "./profile.jsx";
 function HomeLanding() {
   const navigate = useNavigate();
   return (
@@ -92,6 +93,7 @@ export default function App() {
         <Route path="/provider" element={<ProviderDashboard />} />
         <Route path="/dashboard" element={<UserDashboard />} />
         <Route path="/book/:serviceId" element={<BookingPage />} />
+        <Route path="/profile" element={<ProfilesDirectory />} />
         <Route path="/blog" element={<BlogPage />} />
       </Routes>
     </Router>

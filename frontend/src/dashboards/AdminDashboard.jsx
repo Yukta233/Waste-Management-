@@ -596,11 +596,44 @@ function ServiceDetailModal({ service, onClose, onApprove, onReject }) {
 }
 
 function UserDetailModal({ user, onClose }) {
+  const [token] = useState(() => localStorage.getItem('token') || localStorage.getItem('accessToken') || sessionStorage.getItem('token') || sessionStorage.getItem('accessToken') || '');
+  const [loading, setLoading] = useState(false);
+  const [services, setServices] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const isProviderLike = user && (user.role === 'expert' || user.role === 'provider');
+
+  useEffect(() => {
+    if (!user || !isProviderLike) return;
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
+        const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+        // Fetch services by provider
+        const svcRes = await fetch(`${base}/services/provider/${user._id}`, { headers, credentials: 'include' });
+        let svcJson = [];
+        try { const j = await svcRes.json(); svcJson = j?.data || j?.services || j?.data?.services || []; } catch {}
+        // Fetch bookings filtered by provider via admin endpoint
+        const bkRes = await fetch(`${base}/admin/bookings?provider=${user._id}`, { headers, credentials: 'include' });
+        let bkJson = [];
+        try { const j2 = await bkRes.json(); bkJson = j2?.data?.bookings || j2?.bookings || j2?.data || []; } catch {}
+        if (mounted) {
+          setServices(Array.isArray(svcJson) ? svcJson : []);
+          setBookings(Array.isArray(bkJson) ? bkJson : []);
+        }
+      } catch (e) {
+        // silent
+      } finally { if (mounted) setLoading(false); }
+    })();
+    return () => { mounted = false; };
+  }, [user?._id]);
+
   if (!user) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black opacity-50 z-40" onClick={onClose}></div>
-      <div className="relative bg-white rounded-lg shadow-lg z-50 max-w-2xl w-full mx-4 overflow-auto" style={{ maxHeight: '80vh' }}>
+      <div className="relative bg-white rounded-lg shadow-lg z-50 max-w-3xl w-full mx-4 overflow-auto" style={{ maxHeight: '80vh' }}>
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-semibold">{user.fullName}</h3>
           <button type="button" className="px-3 py-1 rounded border" onClick={onClose}>Close</button>
@@ -630,6 +663,35 @@ function UserDetailModal({ user, onClose }) {
               <div className="text-sm text-gray-600">Address</div>
               <div className="font-medium">{user.address || user.location?.address || '-'}</div>
             </div>
+
+            {isProviderLike && (
+              <div className="mt-4">
+                <div className="text-sm text-gray-600">Services & Bookings</div>
+                {loading && <div className="text-sm text-gray-500">Loading...</div>}
+                {!loading && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div className="border rounded p-3">
+                      <div className="font-semibold text-gray-800">Services ({services.length})</div>
+                      <ul className="mt-2 list-disc list-inside text-sm text-gray-700 max-h-40 overflow-auto">
+                        {services.slice(0, 20).map(s => (
+                          <li key={s._id}>{s.title} {s.status ? `• ${s.status}` : ''}</li>
+                        ))}
+                        {services.length === 0 && <li className="list-none text-gray-500">No services</li>}
+                      </ul>
+                    </div>
+                    <div className="border rounded p-3">
+                      <div className="font-semibold text-gray-800">Bookings ({bookings.length})</div>
+                      <ul className="mt-2 list-disc list-inside text-sm text-gray-700 max-h-40 overflow-auto">
+                        {bookings.slice(0, 20).map(b => (
+                          <li key={b._id}>{b.service?.title || 'Service'} • {b.status} • {b.user?.fullName || b.user?.email || 'User'}</li>
+                        ))}
+                        {bookings.length === 0 && <li className="list-none text-gray-500">No bookings</li>}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -45,6 +45,7 @@ export default function UserDashboard() {
   const [editForm, setEditForm] = useState(null);
   const [sellForm, setSellForm] = useState({ wasteType: 'plastic', quantityKg: '', preferredPickupDate: '', preferredPickupTime: '', address: '', images: [] });
   const [mySellListings, setMySellListings] = useState([]);
+  const fileInputRef = React.useRef(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('user') || sessionStorage.getItem('user');
@@ -94,6 +95,39 @@ export default function UserDashboard() {
       const resp = await api('/bookings/my-bookings');
       setBookings(resp?.data?.bookings || resp?.bookings || resp || []);
     } catch (err) { console.error('loadBookings', err); }
+  }
+
+  async function initiatePayment(booking) {
+    try {
+      // Expect backend to return { paymentUrl } after creating a payment session
+      const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
+      const res = await fetch(base + `/bookings/${booking._id || booking.id}/payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          amount: booking.price || booking.service?.price || undefined,
+          currency: 'INR',
+          successUrl: window.location.origin + '/payment/success',
+          cancelUrl: window.location.origin + '/payment/cancel'
+        })
+      });
+      if (!res.ok) {
+        let msg = 'Failed to start payment';
+        try { const j = await res.json(); msg = j?.message || j?.error || msg; } catch {}
+        throw new Error(msg);
+      }
+      const data = await res.json();
+      const paymentUrl = data?.paymentUrl || data?.url || data?.redirectUrl;
+      if (!paymentUrl) throw new Error('Payment URL not provided');
+      window.location.href = paymentUrl;
+    } catch (err) {
+      console.error(err);
+      alert('Could not proceed to payment');
+    }
   }
 
   async function loadProfile() {
@@ -265,9 +299,22 @@ export default function UserDashboard() {
                       <div>
                         <div className="font-medium text-black">{b.service?.title || b.title}</div>
                         <div className="text-xs text-gray-500">{b.date ? new Date(b.date).toLocaleString() : (b.startAt || '')} • {b.status}</div>
+                        {b.price || b.service?.price ? (
+                          <div className="text-sm text-gray-800 mt-1">Amount: ₹{b.price || b.service?.price}</div>
+                        ) : null}
                       </div>
-                      <div className="flex gap-2">
-                        {b.status === 'upcoming' && <button className="px-3 py-1 rounded border text-red-600" onClick={() => alert('Cancel booking')}>Cancel</button>}
+                      <div className="flex gap-2 items-center">
+                        {b.status === 'upcoming' && (
+                          <button className="px-3 py-1 rounded border text-red-600" onClick={() => alert('Cancel booking')}>Cancel</button>
+                        )}
+                        {(b.status === 'confirmed' || b.status === 'accepted') && (
+                          <button
+                            className="px-4 py-2 rounded bg-emerald-600 text-white shadow hover:bg-emerald-700 transition"
+                            onClick={() => initiatePayment(b)}
+                          >
+                            Proceed to Payment
+                          </button>
+                        )}
                         <button className="px-3 py-1 rounded border text-black" onClick={() => alert('Open booking')}>Details</button>
                       </div>
                     </div>
@@ -336,7 +383,51 @@ export default function UserDashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-1">
-                    <img src={profile?.profilePhoto || '/placeholder-avatar.png'} alt="profile" className="h-24 w-24 rounded-full object-cover mb-2" />
+                    <div className="relative w-24 h-24 mb-2">
+                      <img src={profile?.profilePhoto || '/placeholder-avatar.png'} alt="profile" className="h-24 w-24 rounded-full object-cover" />
+                      <button
+                        type="button"
+                        className="absolute bottom-0 right-0 bg-emerald-600 text-white text-xs px-2 py-1 rounded"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        Change
+                      </button>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files && e.target.files[0];
+                          if (!file) return;
+                          try {
+                            const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
+                            const fd = new FormData();
+                            fd.append('profilePhoto', file);
+                            const res = await fetch(base + '/users/profile/photo', {
+                              method: 'PATCH',
+                              body: fd,
+                              headers: token ? { Authorization: `Bearer ${token}` } : {},
+                              credentials: 'include'
+                            });
+                            if (!res.ok) {
+                              let errText = 'Failed to update photo';
+                              try { const j = await res.json(); errText = j?.message || j?.error || errText; } catch {}
+                              throw new Error(errText);
+                            }
+                            const data = await res.json();
+                            const updated = data?.data || data?.user || data;
+                            setProfile(updated);
+                            try { setUser(updated); localStorage.setItem('user', JSON.stringify(updated)); } catch {}
+                          } catch (err) {
+                            console.error(err);
+                            alert('Photo update failed');
+                          } finally {
+                            try { e.target.value = ''; } catch {}
+                          }
+                        }}
+                      />
+                    </div>
                     <div className="font-medium text-black">{profile?.fullName || user?.fullName}</div>
                     <div className="text-sm text-gray-500">{profile?.email || user?.email}</div>
                   </div>

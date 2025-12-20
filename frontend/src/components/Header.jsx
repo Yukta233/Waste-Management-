@@ -101,6 +101,12 @@ export default function Header() {
             >
               About
             </button>
+             <button
+              onClick={() => navigate("/profile")}
+              className="px-5 py-1.5 rounded-full border border-green-600 text-green-600 font-semibold hover:bg-green-50 transition"
+            >
+              Providers Profile
+            </button>
           </nav>
 
           {/* AUTH (right) */}

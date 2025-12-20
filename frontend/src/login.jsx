@@ -57,6 +57,23 @@ export default function LoginPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || 'Login failed');
 
+      // Validate role mismatch before storing tokens or navigating
+      const loggedInUserRole = data?.data?.user?.role;
+      if (!loggedInUserRole) {
+        throw new Error('Login response missing user role.');
+      }
+
+      if (loggedInUserRole !== backendRole) {
+        // Clear any existing tokens just in case and show error
+        try { localStorage.removeItem('accessToken'); } catch {}
+        try { localStorage.removeItem('refreshToken'); } catch {}
+        try { localStorage.removeItem('user'); } catch {}
+        try { sessionStorage.removeItem('accessToken'); } catch {}
+        try { sessionStorage.removeItem('refreshToken'); } catch {}
+        try { sessionStorage.removeItem('user'); } catch {}
+        throw new Error(`Selected role (${role}) does not match your account role (${loggedInUserRole}).`);
+      }
+
       if (data?.data?.accessToken) {
         const storage = remember ? localStorage : sessionStorage;
         storage.setItem('accessToken', data.data.accessToken);

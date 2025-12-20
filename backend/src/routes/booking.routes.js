@@ -17,10 +17,12 @@ router.use(verifyJWT); // All routes below require authentication
 // User bookings
 router.post("/", createBooking);
 router.get("/my-bookings", getUserBookings);
-router.get("/:bookingId", getBookingById);
 
-// Provider bookings
+// Provider bookings - must come BEFORE parameterized routes
 router.get("/provider/bookings", getProviderBookings);
+
+// Booking by id and actions
+router.get("/:bookingId", getBookingById);
 router.patch("/:bookingId/status", updateBookingStatus);
 router.patch("/:bookingId/cancel", cancelBooking);
 

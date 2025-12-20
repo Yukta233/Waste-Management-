@@ -60,6 +60,13 @@ const getAllUsers = asyncHandler(async (req, res) => {
 });
 
 const verifyUser = asyncHandler(async (req, res) => {
+    // Ensure only admins proceed, resilient to missing instance methods
+    const role = req.user?.role;
+    const byMethod = typeof req.user?.isAdmin === 'function' ? req.user.isAdmin() : false;
+    const byRole = typeof role === 'string' && role.toLowerCase() === 'admin';
+    if (!(byMethod || byRole)) {
+        throw new ApiError(403, "Admin access required");
+    }
     const { userId } = req.params;
     const { status, remarks } = req.body;
 
@@ -115,6 +122,13 @@ const verifyUser = asyncHandler(async (req, res) => {
 });
 
 const updateUserRole = asyncHandler(async (req, res) => {
+    // Ensure only admins proceed, resilient to missing instance methods
+    const roleSelf = req.user?.role;
+    const byMethodSelf = typeof req.user?.isAdmin === 'function' ? req.user.isAdmin() : false;
+    const byRoleSelf = typeof roleSelf === 'string' && roleSelf.toLowerCase() === 'admin';
+    if (!(byMethodSelf || byRoleSelf)) {
+        throw new ApiError(403, "Admin access required");
+    }
     const { userId } = req.params;
     const { role } = req.body;
 
