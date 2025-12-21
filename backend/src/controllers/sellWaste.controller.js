@@ -60,10 +60,12 @@ export const listOpen = asyncHandler(async (req, res) => {
   
   // Build query for open listings
   const query = { 
-    status: 'open',
-    // Exclude listings where this provider has already made an offer
-    'offers.provider': { $ne: req.user._id }
+    status: 'open'
   };
+  // Exclude listings where this provider has already made an offer (only if provider id available)
+  if (req.user && req.user._id) {
+    query['offers.provider'] = { $ne: req.user._id };
+  }
   
   // Add filters if provided
   if (city) {

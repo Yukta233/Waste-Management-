@@ -78,6 +78,7 @@ export default function ProviderDashboard() {
   const [editingService, setEditingService] = useState(null);
   const [showServiceDetails, setShowServiceDetails] = useState(false);
   const [serviceDetails, setServiceDetails] = useState(null);
+  const [selectedSellRequest, setSelectedSellRequest] = useState(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('user') || sessionStorage.getItem('user');
@@ -632,6 +633,97 @@ export default function ProviderDashboard() {
     );
   }
 
+  function SellRequestDetailsModal({ request, onClose }) {
+    if (!request) return null;
+    const prettyWaste = request.wasteType ? String(request.wasteType).charAt(0).toUpperCase() + String(request.wasteType).slice(1) : 'Waste';
+    const qty = request.quantityKg ?? request.quantity ?? '-';
+    const posted = request.createdAt ? new Date(request.createdAt).toLocaleString() : '-';
+    const prefPickup = request.preferredPickupAt ? new Date(request.preferredPickupAt).toLocaleString() : null;
+    const location = typeof request.address === 'string' ? request.address : (request.address?.address || request.address?.line1 || request.address?.city || 'Location not specified');
+    const status = request.status || 'open';
+
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" onClick={onClose}>
+        <div className="w-full max-w-3xl bg-white rounded-xl shadow-lg p-4 m-4" onClick={e => e.stopPropagation()}>
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-xl font-semibold text-black">Sell Request Details</h3>
+              <div className="text-sm text-gray-500">{prettyWaste} • {qty} kg</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${status === 'open' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>{status}</span>
+              <button className="text-gray-600" onClick={onClose}>✕</button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div>
+              <div className="text-sm text-gray-600">Customer</div>
+              <div className="font-medium text-gray-900">{request.user?.fullName || request.user?.email || 'Anonymous'}</div>
+              {request.user?.phoneNumber || request.user?.phone ? (
+                <div className="text-sm text-gray-500">{request.user?.phoneNumber || request.user?.phone}</div>
+              ) : null}
+
+              <div className="mt-3 text-sm text-gray-600">Location</div>
+              <div className="text-sm text-gray-800">{location}</div>
+
+              <div className="mt-3 text-sm text-gray-600">Posted</div>
+              <div className="text-sm text-gray-800">{posted}</div>
+
+              {prefPickup && (
+                <>
+                  <div className="mt-3 text-sm text-gray-600">Preferred Pickup</div>
+                  <div className="text-sm text-gray-800">{prefPickup}</div>
+                </>
+              )}
+            </div>
+
+            <div>
+              <div className="text-sm text-gray-600">Description</div>
+              <div className="text-sm text-gray-800 p-3 bg-gray-50 rounded min-h-[60px]">{request.description || '-'}</div>
+
+              {Array.isArray(request.images) && request.images.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-sm text-gray-600">Images</div>
+                  <div className="mt-2 flex gap-2 overflow-x-auto">
+                    {request.images.map((img, i) => (
+                      <img key={i} src={img} alt={`waste-${i}`} className="h-20 w-28 object-cover rounded" />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {Array.isArray(request.offers) && request.offers.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-sm text-gray-600">Offers</div>
+                  <div className="mt-2 space-y-1">
+                    {request.offers.slice(0,3).map((o, i) => (
+                      <div key={i} className="text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                        ₹{o.pricePerKg}/kg • {o.providerName || 'Provider'}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              className="px-4 py-2 rounded bg-emerald-600 text-white"
+              onClick={() => {
+                try { makeOffer(request._id); } catch {}
+              }}
+            >
+              Make Offer
+            </button>
+            <button className="px-4 py-2 rounded border" onClick={onClose}>Close</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header />
@@ -943,44 +1035,7 @@ export default function ProviderDashboard() {
                 </div>
               </Section>
 
-              <Section title="Sell Waste Pickups">
-                <div className="text-sm text-gray-600">Accepted and scheduled sell-waste pickups assigned to you.</div>
-                <div className="mt-3">
-                  {assignedSellPickups.length === 0 && <div className="text-sm text-gray-500">No assigned sell-waste pickups.</div>}
-                  <div className="space-y-3 mt-3">
-                    {assignedSellPickups.map(l => (
-                      <div key={l._id} className="p-3 border rounded flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-black">{String(l.wasteType).toUpperCase()} • {l.quantityKg} kg</div>
-                          <div className="text-xs text-gray-500">Customer: {l.user?.fullName || l.user?.email} • {new Date(l.createdAt).toLocaleString()}</div>
-                          <div className="text-sm text-gray-700">Address: {(l.address && (typeof l.address === 'string' ? l.address : (l.address.address || l.address.line1 || `${l.address.city || ''} ${l.address.pincode || ''}`))) || '-'}</div>
-                          <div className="text-xs text-gray-500">Status: {l.status}</div>
-                        </div>
-                        <div className="flex gap-2">
-                          {l.status === 'accepted' && (
-                            <button className="px-3 py-1 rounded bg-emerald-600 text-white" onClick={async () => {
-                              try { await api(`/sell-waste/${l._id}/status`, { method: 'POST', body: { status: 'scheduled' } }); loadAssignedSellPickups(); alert('Marked scheduled'); } catch (e) { console.error(e); alert('Failed'); }
-                            }}>Mark Scheduled</button>
-                          )}
-                          {l.status === 'scheduled' && (
-                            <>
-                              <button className="px-3 py-1 rounded bg-emerald-600 text-white" onClick={async () => {
-                                try { await api(`/sell-waste/${l._id}/status`, { method: 'POST', body: { status: 'completed' } }); loadAssignedSellPickups(); alert('Marked completed'); } catch (e) { console.error(e); alert('Failed'); }
-                              }}>Mark Completed</button>
-                              <button className="px-3 py-1 rounded border text-red-600" onClick={async () => {
-                                if (!confirm('Cancel this pickup?')) return;
-                                try { await api(`/sell-waste/${l._id}/status`, { method: 'POST', body: { status: 'cancelled' } }); loadAssignedSellPickups(); alert('Cancelled'); } catch (e) { console.error(e); alert('Failed'); }
-                              }}>Cancel</button>
-                            </>
-                          )}
-                          <button className="px-3 py-1 rounded border" onClick={() => setSelectedBooking(l)}>Details</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Section>
-            </>
+                          </>
           )}
 
           {activeTab === 'sell-requests' && (
@@ -1108,7 +1163,7 @@ export default function ProviderDashboard() {
                               Make Offer
                             </button>
                             <button
-                              onClick={() => setSelectedBooking(listing)}
+                              onClick={() => setSelectedSellRequest(listing)}
                               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 whitespace-nowrap"
                             >
                               View Details
@@ -1213,6 +1268,9 @@ export default function ProviderDashboard() {
       )}
       {showServiceDetails && (
         <ServiceDetailsModal serviceId={serviceDetails?._id || serviceDetails?.id || serviceDetails} onClose={() => { setShowServiceDetails(false); setServiceDetails(null); }} />
+      )}
+      {selectedSellRequest && (
+        <SellRequestDetailsModal request={selectedSellRequest} onClose={() => setSelectedSellRequest(null)} />
       )}
       {selectedBooking && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" onClick={() => setSelectedBooking(null)}>
