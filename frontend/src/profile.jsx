@@ -142,7 +142,7 @@ export default function ProfilesDirectory() {
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900"> Our Experts & Providers</h1>
           <div className="flex gap-2">
-            <input placeholder="Search name/email/company" value={filter.q} onChange={e => setFilter(prev => ({ ...prev, q: e.target.value }))} className="rounded border px-3 py-2 bg-white" />
+            <input placeholder="Search name/email/company" value={filter.q} onChange={e => setFilter(prev => ({ ...prev, q: e.target.value }))} className="rounded border px-3 py-2 bg-white text-black" />
             <select value={filter.role} onChange={e => setFilter(prev => ({ ...prev, role: e.target.value }))} className="rounded border px-3 py-2 bg-white text-black">
               <option value="all">All</option>
               <option value="expert">Experts</option>
