@@ -133,12 +133,57 @@ export default function ProviderDashboard() {
 
   // Sell requests (open listings) for providers
   async function loadSellRequests() {
-    try {
-      const resp = await api('/sell-waste/open');
-      const arr = resp?.data || resp || [];
-      setSellRequests(Array.isArray(arr) ? arr : []);
-    } catch (err) { console.error('Failed to load sell requests', err); }
+  try {
+    console.log('Loading sell requests...');
+    
+    // Get provider's location from company profile
+    const providerCity = company?.areas?.split(',')[0] || '';
+    const queryParams = new URLSearchParams();
+    
+    if (providerCity) {
+      queryParams.set('city', providerCity);
+    }
+    
+    const queryString = queryParams.toString();
+    const url = `/sell-waste/open${queryString ? `?${queryString}` : ''}`;
+    
+    console.log('Fetching from URL:', url);
+    
+    const resp = await api(url);
+    console.log('Sell requests response:', resp);
+    
+    const arr = resp?.data || resp || [];
+    setSellRequests(Array.isArray(arr) ? arr : []);
+    
+  } catch (err) { 
+    console.error('Failed to load sell requests', err);
+    setError('Failed to load sell requests: ' + (err.message || 'Unknown error'));
+    
+    // For debugging, show mock data
+    setSellRequests([
+      {
+        _id: 'mock_1',
+        wasteType: 'plastic',
+        quantityKg: 5,
+        user: { fullName: 'Test User', email: 'test@example.com' },
+        address: { city: 'Mumbai', address: '123 Test Street' },
+        createdAt: new Date(),
+        description: 'Clean plastic bottles',
+        status: 'open'
+      },
+      {
+        _id: 'mock_2',
+        wasteType: 'paper',
+        quantityKg: 3,
+        user: { fullName: 'Another User', email: 'user@example.com' },
+        address: { city: 'Delhi', address: '456 Sample Road' },
+        createdAt: new Date(),
+        description: 'Old newspapers and magazines',
+        status: 'open'
+      }
+    ]);
   }
+}
 
   async function loadAssignedSellPickups() {
     try {
@@ -149,20 +194,103 @@ export default function ProviderDashboard() {
   }
 
   async function makeOffer(listingId) {
-    try {
-      const price = prompt('Enter price per kg (numeric)');
-      if (!price) return;
-      const msg = prompt('Optional message to the user');
-      await api(`/sell-waste/${listingId}/offer`, { method: 'POST', body: { pricePerKg: Number(price), message: msg } });
-      alert('Offer sent');
+  try {
+    // Check if we have a valid listingId
+    if (!listingId) {
+      alert('Invalid listing ID');
+      return;
+    }
+    
+    // Get listing details from state
+    const listing = sellRequests.find(l => l._id === listingId);
+    if (!listing) {
+      alert('Listing not found in current list');
+      return;
+    }
+    
+    console.log('Making offer for listing:', listing);
+    
+    // Calculate suggested price
+    const suggestedPrices = {
+      'plastic': 10,
+      'paper': 5,
+      'metal': 15,
+      'e-waste': 25,
+      'glass': 3,
+      'organic': 2,
+      'mixed': 8,
+      'textile': 4
+    };
+    
+    const wasteType = listing.wasteType || 'mixed';
+    const suggestedPrice = suggestedPrices[wasteType] || 8;
+    const suggestedTotal = suggestedPrice * (listing.quantityKg || 1);
+    
+    // Get price from user
+    const priceInput = prompt(
+      `Enter price per kg (₹)\n\nWaste Type: ${wasteType.toUpperCase()}\nQuantity: ${listing.quantityKg} kg\nSuggested: ₹${suggestedPrice}/kg\nTotal: ₹${suggestedTotal}`,
+      suggestedPrice.toString()
+    );
+    
+    if (priceInput === null) {
+      // User cancelled
+      return;
+    }
+    
+    const price = parseFloat(priceInput);
+    if (isNaN(price) || price <= 0) {
+      alert('Please enter a valid positive number for price');
+      return;
+    }
+    
+    // Get optional message
+    const msg = prompt('Optional message to the user (e.g., pickup schedule, additional info):\n\nPress Cancel to skip message.');
+    
+    // Show loading state
+    setLoading(true);
+    
+    // Make API call
+    console.log('Sending offer with:', { pricePerKg: price, message: msg || '' });
+    const resp = await api(`/sell-waste/${listingId}/offer`, { 
+      method: 'POST', 
+      body: { 
+        pricePerKg: price, 
+        message: msg || '' 
+      } 
+    });
+    
+    console.log('Offer response:', resp);
+    
+    if (resp?.success) {
+      alert('✅ Offer sent successfully! The user will be notified.');
+      
+      // Remove this listing from the current view since provider already made an offer
+      setSellRequests(prev => prev.filter(l => l._id !== listingId));
+      
+      // Also refresh to get updated data
       loadSellRequests();
-    } catch (err) { console.error(err); alert('Failed to send offer'); }
+      
+    } else {
+      throw new Error(resp?.message || 'Failed to send offer');
+    }
+    
+  } catch (err) { 
+    console.error('Error in makeOffer:', err);
+    alert(`❌ Failed to send offer: ${err.message || 'Please try again'}`);
+  } finally {
+    setLoading(false);
   }
+}
 
   // simple api helper
   async function api(path, { method = 'GET', body, token: tk } = {}) {
-    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
-    const res = await fetch(`${base}${path}`, {
+  const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
+  const url = `${base}${path}`;
+  
+  console.log(`API ${method} ${url}`, body ? { body } : '');
+  
+  try {
+    const res = await fetch(url, {
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -171,14 +299,21 @@ export default function ProviderDashboard() {
       body: body ? JSON.stringify(body) : undefined,
       credentials: 'include',
     });
+    
+    console.log(`API Response Status: ${res.status} ${res.statusText}`);
+    
     if (!res.ok) {
-      // try to parse JSON body for message
       let bodyText = '';
-      try { bodyText = await res.text(); } catch {}
-      // detect expired jwt
+      try { 
+        bodyText = await res.text(); 
+        console.log('API Error Response:', bodyText);
+      } catch {}
+      
+      // try to parse JSON body for message
       try {
         const parsed = JSON.parse(bodyText || '{}');
         const msg = parsed?.message || parsed?.error || bodyText;
+        
         if (res.status === 401 || String(msg).toLowerCase().includes('jwt expired') || String(msg).toLowerCase().includes('token')) {
           try {
             localStorage.removeItem('accessToken');
@@ -196,8 +331,16 @@ export default function ProviderDashboard() {
         throw new Error(bodyText || `Request failed ${res.status}`);
       }
     }
-    return res.json();
+    
+    const data = await res.json();
+    console.log('API Success Response:', data);
+    return data;
+    
+  } catch (error) {
+    console.error('API Request Failed:', error);
+    throw error;
   }
+}
 
   // normalize frontend category values to backend-accepted categories
   function normalizeCategory(cat) {
@@ -841,27 +984,195 @@ export default function ProviderDashboard() {
           )}
 
           {activeTab === 'sell-requests' && (
-            <Section title="Sell Waste Requests">
-              <div className="text-sm text-gray-600">Open sell requests from users. Make an offer to purchase their waste.</div>
-              <div className="mt-3">
-                {sellRequests.length === 0 && <div className="text-sm text-gray-500">No open sell requests.</div>}
-                <div className="space-y-3 mt-3">
-                  {sellRequests.map(l => (
-                    <div key={l._id} className="p-3 border rounded flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-black">{String(l.wasteType).toUpperCase()} • {l.quantityKg} kg</div>
-                        <div className="text-xs text-gray-500">{l.user?.fullName || l.user?.email} • {new Date(l.createdAt).toLocaleString()}</div>
-                        <div className="text-sm text-gray-700">Address: {(l.address && (typeof l.address === 'string' ? l.address : (l.address.address || l.address.line1 || `${l.address.city || ''} ${l.address.pincode || ''}`))) || '-'}</div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button className="px-3 py-1 rounded bg-emerald-600 text-white" onClick={() => makeOffer(l._id)}>Make Offer</button>
-                        <button className="px-3 py-1 rounded border" onClick={() => { setSelectedBooking(l); }}>Details</button>
-                      </div>
-                    </div>
-                  ))}
+            <div className="space-y-6">
+              <Section title="Sell Waste Requests">
+                <div className="text-sm text-gray-600 mb-4">
+                  Open sell requests from users. Make an offer to purchase their waste. 
+                  Click on a request to view details and make an offer.
                 </div>
-              </div>
-            </Section>
+                
+                <div className="mb-4 flex gap-2">
+                  <button
+                    onClick={() => loadSellRequests()}
+                    className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    Refresh List
+                  </button>
+                  <button
+                    onClick={() => {
+                      // Optional: Filter by city
+                      const city = prompt('Filter by city (leave empty for all):');
+                      if (city !== null) {
+                        loadSellRequests(city);
+                      }
+                    }}
+                    className="px-3 py-1 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  >
+                    Filter by City
+                  </button>
+                </div>
+                
+                {sellRequests.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 mb-2">📭</div>
+                    <p className="text-gray-500">No open sell requests at the moment.</p>
+                    <p className="text-sm text-gray-400 mt-1">Check back later for new requests.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {sellRequests.map(listing => (
+                      <div key={listing._id} className="border rounded-lg p-4 hover:shadow-sm transition-shadow">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-semibold text-gray-800">
+                                {listing.wasteType?.charAt(0).toUpperCase() + listing.wasteType?.slice(1) || 'Waste'}
+                              </span>
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                {listing.quantityKg} kg
+                              </span>
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                Open
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <div className="text-gray-500">Customer</div>
+                                <div className="font-medium text-gray-800">
+                                  {listing.user?.fullName || listing.user?.email || 'Anonymous'}
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <div className="text-gray-500">Location</div>
+                                <div className="font-medium text-gray-800">
+                                  {listing.address?.city || listing.address?.area || 'Location not specified'}
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <div className="text-gray-500">Distance</div>
+                                <div className="font-medium text-gray-800">
+                                  {listing.distance ? `${listing.distance.toFixed(1)} km` : 'Unknown'}
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <div className="text-gray-500">Posted</div>
+                                <div className="font-medium text-gray-800">
+                                  {new Date(listing.createdAt).toLocaleDateString()}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {listing.preferredPickupAt && (
+                              <div className="mt-2">
+                                <div className="text-gray-500 text-sm">Preferred Pickup</div>
+                                <div className="font-medium text-gray-800">
+                                  {new Date(listing.preferredPickupAt).toLocaleString()}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {listing.description && (
+                              <div className="mt-3">
+                                <div className="text-gray-500 text-sm">Description</div>
+                                <div className="text-gray-700 mt-1">{listing.description}</div>
+                              </div>
+                            )}
+                            
+                            {/* Display images if available */}
+                            {listing.images && listing.images.length > 0 && (
+                              <div className="mt-3">
+                                <div className="text-gray-500 text-sm mb-2">Images</div>
+                                <div className="flex gap-2 overflow-x-auto pb-2">
+                                  {listing.images.map((img, index) => (
+                                    <img
+                                      key={index}
+                                      src={img}
+                                      alt={`Waste ${index + 1}`}
+                                      className="h-20 w-20 object-cover rounded-lg"
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-col gap-2 ml-4">
+                            <button
+                              onClick={() => makeOffer(listing._id)}
+                              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 whitespace-nowrap"
+                            >
+                              Make Offer
+                            </button>
+                            <button
+                              onClick={() => setSelectedBooking(listing)}
+                              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 whitespace-nowrap"
+                            >
+                              View Details
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Show existing offers if any */}
+                        {listing.offers && listing.offers.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-gray-100">
+                            <div className="text-sm text-gray-600 mb-2">
+                              {listing.offers.length} offer{listing.offers.length !== 1 ? 's' : ''} received
+                            </div>
+                            <div className="space-y-2">
+                              {listing.offers.slice(0, 3).map((offer, index) => (
+                                <div key={index} className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                                  ₹{offer.pricePerKg}/kg by {offer.providerName || 'Provider'}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+              
+              {/* My Offers Section */}
+              <Section title="My Offers">
+                <div className="text-sm text-gray-600 mb-4">
+                  Track offers you've made to users. You'll be notified when users accept or reject your offers.
+                </div>
+                
+                {providerBookings.filter(b => b.type === 'sell-offer').length === 0 ? (
+                  <div className="text-center py-4">
+                    <p className="text-gray-500">You haven't made any offers yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {providerBookings
+                      .filter(b => b.type === 'sell-offer')
+                      .map(offer => (
+                        <div key={offer._id} className="border rounded p-3">
+                          <div className="flex justify-between">
+                            <div>
+                              <div className="font-medium">{offer.wasteType} • {offer.quantityKg}kg</div>
+                              <div className="text-xs text-gray-500">
+                                Offered: ₹{offer.pricePerKg}/kg • Status: {offer.status}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setSelectedBooking(offer)}
+                              className="text-sm text-blue-600 hover:text-blue-800"
+                            >
+                              View
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </Section>
+            </div>
           )}
 
           {activeTab === 'contracts' && (

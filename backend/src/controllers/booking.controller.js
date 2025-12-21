@@ -4,7 +4,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { Booking } from "../models/Booking.model.js";
 import { Service } from "../models/Service.model.js";
 import { User } from "../models/User.model.js";
-
+import { notificationUtils } from '../controllers/notification.controller.js';
 const createBooking = asyncHandler(async (req, res) => {
     const {
         serviceId,
@@ -99,21 +99,18 @@ const createBooking = asyncHandler(async (req, res) => {
         $push: { bookingsMade: booking._id }
     });
 
-        // Notify provider about new booking
         try {
             const providerUser = await User.findById(service.provider);
-            if (providerUser) {
-                const note = {
-                    title: 'New booking request',
-                    message: `${req.user.fullName || req.user.email || 'A user'} requested a booking for ${service.title}`,
-                    type: 'booking',
-                    data: { bookingId: booking._id, serviceId: service._id },
-                    createdAt: new Date()
-                };
-                await User.findByIdAndUpdate(service.provider, { $push: { notifications: note } });
-            }
-        } catch (e) {
-            console.error('Failed to notify provider about new booking', e.message);
+                if (providerUser) {
+                    await notificationUtils.createBookingNotification(
+                    service.provider,
+                    req.user._id,
+                    booking._id,
+                    service.title
+                    );
+                }
+            } catch (e) {
+                console.error('Failed to notify provider about new booking', e.message);
         }
 
     // Populate booking details for response
@@ -280,16 +277,13 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
 
     // Notify user about status change (you can implement email/notification here)
         try {
-            const note = {
-                title: `Booking ${status}`,
-                message: `Your booking ${booking.bookingId} was ${status} by the provider`,
-                type: 'booking',
-                data: { bookingId: booking._id },
-                createdAt: new Date()
-            };
-            await User.findByIdAndUpdate(booking.user, { $push: { notifications: note } });
-        } catch (e) {
-            console.error('Failed to notify user about booking status change', e.message);
+                await notificationUtils.createBookingStatusNotification(
+                    booking.user,
+                    booking._id,
+                    status
+                );
+            } catch (e) {
+                console.error('Failed to notify user about booking status change', e.message);
         }
 
     return res

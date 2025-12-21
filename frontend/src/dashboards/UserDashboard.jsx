@@ -43,8 +43,20 @@ export default function UserDashboard() {
   const [notifications, setNotifications] = useState([]);
   const [editingProfile, setEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState(null);
-  const [sellForm, setSellForm] = useState({ wasteType: 'plastic', quantityKg: '', preferredPickupDate: '', preferredPickupTime: '', address: '', images: [] });
+  
+  const [sellForm, setSellForm] = useState({ 
+    wasteType: 'plastic', 
+    quantityKg: '', 
+    preferredPickupDate: '', 
+    preferredPickupTime: '', 
+    address: '', 
+    description: '',
+    images: [] 
+  });
+  
   const [mySellListings, setMySellListings] = useState([]);
+  const [sellOffers, setSellOffers] = useState({});
+  const [selectedListing, setSelectedListing] = useState(null);
   const fileInputRef = React.useRef(null);
 
   useEffect(() => {
@@ -162,6 +174,79 @@ export default function UserDashboard() {
     } catch (err) { console.error('loadNotifications', err); }
   }
 
+  async function loadMySellListings() {
+    try {
+      const resp = await api('/sell-waste/my');
+      const listings = resp?.data || resp || [];
+      setMySellListings(listings);
+      
+      // Load offers for each listing
+      for (const listing of listings) {
+        if (listing._id) {
+          loadOffersForListing(listing._id);
+        }
+      }
+    } catch (err) { 
+      console.error('loadMySellListings', err); 
+    }
+  }
+
+  async function loadOffersForListing(listingId) {
+    try {
+      const resp = await api(`/sell-waste/${listingId}/offers`);
+      setSellOffers(prev => ({
+        ...prev,
+        [listingId]: resp?.data?.offers || resp?.offers || []
+      }));
+    } catch (err) {
+      console.error('loadOffersForListing', err);
+    }
+  }
+
+  async function acceptOffer(listingId, offerId) {
+    if (!confirm('Accept this offer?')) return;
+    try {
+      const resp = await api(`/sell-waste/${listingId}/accept`, {
+        method: 'POST',
+        body: { offerId }
+      });
+      alert('Offer accepted! The provider will contact you soon.');
+      loadMySellListings();
+    } catch (err) {
+      console.error('acceptOffer', err);
+      alert('Failed to accept offer: ' + (err.message || 'Try again'));
+    }
+  }
+
+  async function rejectOffer(listingId, offerId) {
+    if (!confirm('Reject this offer?')) return;
+    try {
+      const resp = await api(`/sell-waste/${listingId}/reject-offer`, {
+        method: 'POST',
+        body: { offerId }
+      });
+      alert('Offer rejected.');
+      loadMySellListings();
+    } catch (err) {
+      console.error('rejectOffer', err);
+      alert('Failed to reject offer');
+    }
+  }
+
+  async function cancelListing(listingId) {
+    if (!confirm('Cancel this listing?')) return;
+    try {
+      const resp = await api(`/sell-waste/${listingId}/cancel`, {
+        method: 'POST'
+      });
+      alert('Listing cancelled.');
+      loadMySellListings();
+    } catch (err) {
+      console.error('cancelListing', err);
+      alert('Failed to cancel listing');
+    }
+  }
+
   // Load dashboard data once when token becomes available to avoid re-render loops
   useEffect(() => {
     if (token) {
@@ -170,18 +255,9 @@ export default function UserDashboard() {
       loadProfile();
       loadReviews();
       loadNotifications();
+      loadMySellListings();
     }
   }, [token]);
-
-
-  async function loadMySellListings() {
-    try {
-      const resp = await api('/sell-waste/my');
-      setMySellListings(resp?.data || resp || []);
-    } catch (err) { console.error('loadMySellListings', err); }
-  }
-
-  useEffect(() => { if (token) loadMySellListings(); }, [token]);
 
     // react to navigation state (e.g., after creating a booking)
     const location = useLocation();
@@ -585,90 +661,453 @@ export default function UserDashboard() {
           )}
 
           {activeTab === 'sell-waste' && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-800">Sell Waste / Request Pickup</h2>
-              <div className="bg-white rounded-xl border p-4">
+            <div className="space-y-6">
+              {/* Create New Listing Form */}
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">Create New Sell Request</h2>
                 <form onSubmit={async e => {
                   e.preventDefault();
+                  setLoading(true);
                   try {
                     const fd = new FormData();
                     fd.append('wasteType', sellForm.wasteType);
                     fd.append('quantityKg', sellForm.quantityKg);
-                    fd.append('address', typeof sellForm.address === 'string' ? sellForm.address : JSON.stringify(sellForm.address));
-                    // combine date + time into ISO datetime if both provided
+                    fd.append('description', sellForm.description || '');
+                    
+                    // Use user's address if available, otherwise use form address
+                    const addressToUse = profile?.addresses?.[0]?.address || sellForm.address || '';
+                    fd.append('address', addressToUse);
+                    
+                    // Combine date and time
                     if (sellForm.preferredPickupDate && sellForm.preferredPickupTime) {
-                      const dt = new Date(sellForm.preferredPickupDate + 'T' + sellForm.preferredPickupTime);
-                      if (!isNaN(dt.getTime())) fd.append('preferredPickupAt', dt.toISOString());
+                      const dateTime = `${sellForm.preferredPickupDate}T${sellForm.preferredPickupTime}`;
+                      fd.append('preferredPickupAt', new Date(dateTime).toISOString());
                     }
+                    
+                    // Upload images
                     if (sellForm.images && sellForm.images.length) {
-                      for (let i = 0; i < sellForm.images.length; i++) fd.append('images', sellForm.images[i]);
+                      for (let i = 0; i < sellForm.images.length; i++) {
+                        fd.append('images', sellForm.images[i]);
+                      }
                     }
+                    
                     const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
-                    const headers = {};
-                    if (token) headers['Authorization'] = `Bearer ${token}`;
-                    const res = await fetch(base + '/sell-waste', { method: 'POST', body: fd, headers, credentials: 'include' });
+                    const res = await fetch(base + '/sell-waste', {
+                      method: 'POST',
+                      body: fd,
+                      headers: token ? { Authorization: `Bearer ${token}` } : {},
+                      credentials: 'include'
+                    });
+                    
                     if (!res.ok) {
-                      let errText = 'Failed to create listing';
-                      try { const j = await res.json(); errText = j?.message || j?.error || JSON.stringify(j) || errText; } catch(e) {}
-                      throw new Error(errText);
+                      const errorData = await res.json();
+                      throw new Error(errorData?.message || 'Failed to create listing');
                     }
-                    alert('Sell request created');
-                    setSellForm({ wasteType: 'plastic', quantityKg: '', preferredPickupAt: '', address: '', images: [] });
+                    
+                    const result = await res.json();
+                    alert('Sell request created successfully! Providers will see your request.');
+                    
+                    // Reset form
+                    setSellForm({ 
+                      wasteType: 'plastic', 
+                      quantityKg: '', 
+                      preferredPickupDate: '', 
+                      preferredPickupTime: '', 
+                      address: '', 
+                      description: '',
+                      images: [] 
+                    });
+                    
+                    // Refresh listings
                     loadMySellListings();
-                  } catch (err) { console.error(err); alert('Failed to create listing'); }
-                }} className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <label className="block"><span className="text-sm text-gray-700">Waste Type</span>
-                      <select value={sellForm.wasteType} onChange={e => setSellForm(prev => ({ ...prev, wasteType: e.target.value }))} className="mt-1 w-full rounded border px-3 py-2 bg-white text-black">
+                    
+                  } catch (err) {
+                    console.error('Create listing error:', err);
+                    alert('Failed to create listing: ' + err.message);
+                  } finally {
+                    setLoading(false);
+                  }
+                }} className="space-y-4">
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Waste Type *
+                      </label>
+                      <select
+                        value={sellForm.wasteType}
+                        onChange={e => setSellForm(prev => ({ ...prev, wasteType: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        required
+                      >
                         <option value="plastic">Plastic</option>
-                        <option value="paper">Paper</option>
+                        <option value="paper">Paper/Cardboard</option>
                         <option value="metal">Metal</option>
-                        <option value="e-waste">E-waste</option>
+                        <option value="e-waste">E-Waste</option>
                         <option value="glass">Glass</option>
+                        <option value="organic">Organic Waste</option>
+                        <option value="textile">Textile</option>
+                        <option value="mixed">Mixed Waste</option>
                       </select>
-                    </label>
-                    <label className="block"><span className="text-sm text-gray-700">Approx Quantity (kg)</span>
-                      <input value={sellForm.quantityKg} onChange={e => setSellForm(prev => ({ ...prev, quantityKg: e.target.value }))} type="number" min="0" step="0.1" className="mt-1 w-full rounded border px-3 py-2 bg-white text-black" />
-                    </label>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Quantity (kg) *
+                      </label>
+                      <input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={sellForm.quantityKg}
+                        onChange={e => setSellForm(prev => ({ ...prev, quantityKg: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        placeholder="e.g., 5.0"
+                        required
+                      />
+                    </div>
                   </div>
-
-                  <label className="block"><span className="text-sm text-gray-700">Pickup Address</span>
-                    <input value={sellForm.address} onChange={e => setSellForm(prev => ({ ...prev, address: e.target.value }))} placeholder="Enter pickup address or select saved address" className="mt-1 w-full rounded border px-3 py-2 bg-white text-black" />
-                  </label>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <label className="block"><span className="text-sm text-gray-700">Preferred pickup date</span>
-                      <input value={sellForm.preferredPickupDate} onChange={e => setSellForm(prev => ({ ...prev, preferredPickupDate: e.target.value }))} type="date" className="mt-1 w-full rounded border px-3 py-2 bg-white text-black" />
-                    </label>
-                    <label className="block"><span className="text-sm text-gray-700">Preferred pickup time</span>
-                      <input value={sellForm.preferredPickupTime} onChange={e => setSellForm(prev => ({ ...prev, preferredPickupTime: e.target.value }))} type="time" className="mt-1 w-full rounded border px-3 py-2 bg-white text-black" />
-                    </label>
-                  </div>
-
-                  <label className="block"><span className="text-sm text-gray-700">Images (optional)</span>
-                    <input type="file" multiple accept="image/*" onChange={e => setSellForm(prev => ({ ...prev, images: Array.from(e.target.files || []) }))} className="mt-1 w-full text-black" />
-                  </label>
-
+                  
                   <div>
-                    <button type="submit" className="px-3 py-2 rounded bg-emerald-600 text-white">Create Sell Request</button>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Pickup Address *
+                    </label>
+                    <textarea
+                      value={sellForm.address || (profile?.addresses?.[0]?.address || '')}
+                      onChange={e => setSellForm(prev => ({ ...prev, address: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="Enter complete pickup address"
+                      rows="2"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Preferred Pickup Date
+                      </label>
+                      <input
+                        type="date"
+                        value={sellForm.preferredPickupDate}
+                        onChange={e => setSellForm(prev => ({ ...prev, preferredPickupDate: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Preferred Pickup Time
+                      </label>
+                      <input
+                        type="time"
+                        value={sellForm.preferredPickupTime}
+                        onChange={e => setSellForm(prev => ({ ...prev, preferredPickupTime: e.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Additional Description
+                    </label>
+                    <textarea
+                      value={sellForm.description}
+                      onChange={e => setSellForm(prev => ({ ...prev, description: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="Describe your waste (e.g., clean plastic bottles, old newspapers, etc.)"
+                      rows="2"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Upload Images (Optional)
+                    </label>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={e => setSellForm(prev => ({ ...prev, images: Array.from(e.target.files || []) }))}
+                      className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Upload photos to help providers assess your waste</p>
+                  </div>
+                  
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="px-6 py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {loading ? 'Creating...' : 'Create Sell Request'}
+                    </button>
                   </div>
                 </form>
-
-                <div className="mt-6">
-                  <h3 className="text-sm font-semibold text-black">My Sell Requests</h3>
-                  {mySellListings.length === 0 && <div className="text-sm text-gray-500">No sell requests yet.</div>}
-                  <div className="space-y-3 mt-2">{mySellListings.map(l => (
-                    <div key={l._id} className="p-3 border rounded flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">{l.wasteType} — {l.quantityKg} kg</div>
-                        <div className="text-xs text-gray-500">Status: {l.status} • {new Date(l.createdAt).toLocaleString()}</div>
+              </div>
+              
+              {/* My Sell Listings */}
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800">My Sell Requests</h3>
+                  <button 
+                    onClick={loadMySellListings}
+                    className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                
+                {mySellListings.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 mb-2">🗑️</div>
+                    <p className="text-gray-500">No sell requests yet.</p>
+                    <p className="text-sm text-gray-400 mt-1">Create your first request above!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {mySellListings.map(listing => (
+                      <div key={listing._id} className="border rounded-lg p-4 hover:shadow-sm transition-shadow">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-gray-800">
+                                {listing.wasteType.charAt(0).toUpperCase() + listing.wasteType.slice(1)}
+                              </span>
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                                {listing.quantityKg} kg
+                              </span>
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                listing.status === 'open' ? 'bg-blue-100 text-blue-800' :
+                                listing.status === 'offered' ? 'bg-yellow-100 text-yellow-800' :
+                                listing.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                                listing.status === 'scheduled' ? 'bg-purple-100 text-purple-800' :
+                                listing.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+                                listing.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {listing.status.charAt(0).toUpperCase() + listing.status.slice(1)}
+                              </span>
+                            </div>
+                            
+                            <div className="mt-2 text-sm text-gray-600">
+                              <div>Created: {new Date(listing.createdAt).toLocaleDateString()}</div>
+                              {listing.preferredPickupAt && (
+                                <div>Preferred pickup: {new Date(listing.preferredPickupAt).toLocaleString()}</div>
+                              )}
+                            </div>
+                            
+                            {listing.description && (
+                              <div className="mt-2 text-sm text-gray-700">
+                                {listing.description}
+                              </div>
+                            )}
+                            
+                            {/* Offers Section */}
+                            {sellOffers[listing._id] && sellOffers[listing._id].length > 0 && (
+                              <div className="mt-4">
+                                <h4 className="text-sm font-medium text-gray-700 mb-2">Offers Received:</h4>
+                                <div className="space-y-2">
+                                  {sellOffers[listing._id].map(offer => (
+                                    <div key={offer._id} className="border-l-4 border-emerald-500 pl-3 py-2 bg-gray-50 rounded-r">
+                                      <div className="flex justify-between items-center">
+                                        <div>
+                                          <div className="font-medium text-gray-800">
+                                            ₹{offer.pricePerKg}/kg (Total: ₹{offer.totalPrice})
+                                          </div>
+                                          <div className="text-xs text-gray-600 mt-1">
+                                            {offer.message || 'No message from provider'}
+                                          </div>
+                                          <div className="text-xs text-gray-500 mt-1">
+                                            Offered on: {new Date(offer.createdAt).toLocaleDateString()}
+                                          </div>
+                                        </div>
+                                        
+                                        {listing.status === 'offered' && !offer.accepted && (
+                                          <div className="flex gap-2">
+                                            <button
+                                              onClick={() => rejectOffer(listing._id, offer._id)}
+                                              className="px-3 py-1 text-xs border border-red-300 text-red-600 rounded hover:bg-red-50"
+                                            >
+                                              Reject
+                                            </button>
+                                            <button
+                                              onClick={() => acceptOffer(listing._id, offer._id)}
+                                              className="px-3 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700"
+                                            >
+                                              Accept Offer
+                                            </button>
+                                          </div>
+                                        )}
+                                        
+                                        {offer.accepted && (
+                                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                            Accepted
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-col gap-2">
+                            {listing.status === 'open' && (
+                              <button
+                                onClick={() => cancelListing(listing._id)}
+                                className="px-3 py-1 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            
+                            <button
+                              onClick={() => setSelectedListing(listing)}
+                              className="px-3 py-1 text-sm border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
+                            >
+                              View Details
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Status Timeline */}
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                          <div className="text-xs text-gray-500">
+                            Request ID: {listing._id}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        {l.status === 'open' && <button className="px-2 py-1 rounded border" onClick={() => navigator.clipboard.writeText(l._id)}>Copy ID</button>}
-                        <button className="px-2 py-1 rounded border" onClick={() => alert(JSON.stringify(l, null, 2))}>Details</button>
-                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Listing Details Modal */}
+          {selectedListing && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+              <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Sell Request Details
+                  </h3>
+                  <button
+                    onClick={() => setSelectedListing(null)}
+                    className="text-gray-400 hover:text-gray-600 text-xl"
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Waste Type</h4>
+                      <p className="text-gray-800">{selectedListing.wasteType}</p>
                     </div>
-                  ))}</div>
+                    
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Quantity</h4>
+                      <p className="text-gray-800">{selectedListing.quantityKg} kg</p>
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Address</h4>
+                      <p className="text-gray-800">
+                        {typeof selectedListing.address === 'string' 
+                          ? selectedListing.address 
+                          : JSON.stringify(selectedListing.address)}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Status</h4>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        selectedListing.status === 'open' ? 'bg-blue-100 text-blue-800' :
+                        selectedListing.status === 'offered' ? 'bg-yellow-100 text-yellow-800' :
+                        selectedListing.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                        selectedListing.status === 'scheduled' ? 'bg-purple-100 text-purple-800' :
+                        selectedListing.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+                        selectedListing.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {selectedListing.status.charAt(0).toUpperCase() + selectedListing.status.slice(1)}
+                      </span>
+                    </div>
+                    
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Created</h4>
+                      <p className="text-gray-800">
+                        {new Date(selectedListing.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    
+                    {selectedListing.preferredPickupAt && (
+                      <div className="md:col-span-2">
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Preferred Pickup</h4>
+                        <p className="text-gray-800">
+                          {new Date(selectedListing.preferredPickupAt).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {selectedListing.description && (
+                      <div className="md:col-span-2">
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Description</h4>
+                        <p className="text-gray-800">{selectedListing.description}</p>
+                      </div>
+                    )}
+                    
+                    {selectedListing.images && selectedListing.images.length > 0 && (
+                      <div className="md:col-span-2">
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Images</h4>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          {selectedListing.images.map((img, index) => (
+                            <img
+                              key={index}
+                              src={img}
+                              alt={`Waste image ${index + 1}`}
+                              className="w-full h-32 object-cover rounded-lg"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {selectedListing.rejectionReason && (
+                      <div className="md:col-span-2">
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Rejection Reason</h4>
+                        <p className="text-gray-800">{selectedListing.rejectionReason}</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="mt-8 pt-6 border-t border-gray-200">
+                    <div className="flex justify-end gap-3">
+                      {selectedListing.status === 'open' && (
+                        <button
+                          onClick={() => {
+                            cancelListing(selectedListing._id);
+                            setSelectedListing(null);
+                          }}
+                          className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+                        >
+                          Cancel Request
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setSelectedListing(null)}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

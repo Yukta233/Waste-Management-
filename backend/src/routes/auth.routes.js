@@ -9,7 +9,7 @@ import {
     resetPassword
 } from '../controllers/auth.controller.js';
 import { verifyJWT } from '../middleware/auth.middleware.js';
-import { uploadProfilePhoto, handleUploadError } from '../middleware/upload.middleware.js'; // ADD THIS
+import {  uploadProfilePhoto, handleUploadError } from '../middleware/upload.middleware.js'; // ADD THIS
 
 const router = express.Router();
 router.options("/register", (req, res) => {
