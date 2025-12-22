@@ -5,6 +5,7 @@ import { User } from "../models/User.model.js";
 import { Service } from "../models/Service.model.js";
 import { Booking } from "../models/Booking.model.js";
 
+
 const getAllUsers = asyncHandler(async (req, res) => {
     const { 
         role, 
@@ -60,13 +61,7 @@ const getAllUsers = asyncHandler(async (req, res) => {
 });
 
 const verifyUser = asyncHandler(async (req, res) => {
-    // Ensure only admins proceed, resilient to missing instance methods
-    const role = req.user?.role;
-    const byMethod = typeof req.user?.isAdmin === 'function' ? req.user.isAdmin() : false;
-    const byRole = typeof role === 'string' && role.toLowerCase() === 'admin';
-    if (!(byMethod || byRole)) {
-        throw new ApiError(403, "Admin access required");
-    }
+    // ✅ REMOVED: Duplicate admin check (already done by requireAdmin middleware)
     const { userId } = req.params;
     const { status, remarks } = req.body;
 
@@ -80,7 +75,7 @@ const verifyUser = asyncHandler(async (req, res) => {
     }
 
     // Only experts and providers can be verified
-    if (!user.isExpert() && !user.isProvider()) {
+    if (!['expert', 'provider'].includes(user.role)) {
         throw new ApiError(400, "Only experts and providers can be verified");
     }
 
@@ -122,13 +117,7 @@ const verifyUser = asyncHandler(async (req, res) => {
 });
 
 const updateUserRole = asyncHandler(async (req, res) => {
-    // Ensure only admins proceed, resilient to missing instance methods
-    const roleSelf = req.user?.role;
-    const byMethodSelf = typeof req.user?.isAdmin === 'function' ? req.user.isAdmin() : false;
-    const byRoleSelf = typeof roleSelf === 'string' && roleSelf.toLowerCase() === 'admin';
-    if (!(byMethodSelf || byRoleSelf)) {
-        throw new ApiError(403, "Admin access required");
-    }
+    // ✅ REMOVED: Duplicate admin check (already done by requireAdmin middleware)
     const { userId } = req.params;
     const { role } = req.body;
 
@@ -143,7 +132,7 @@ const updateUserRole = asyncHandler(async (req, res) => {
     }
 
     // Cannot change own role
-    if (user._id.equals(req.user._id)) {
+    if (user._id.toString() === req.user._id.toString()) {
         throw new ApiError(400, "Cannot change your own role");
     }
 
@@ -180,6 +169,7 @@ const updateUserRole = asyncHandler(async (req, res) => {
         );
 });
 
+// ... rest of the file remains the same (getAllServicesForAdmin, getAllBookingsForAdmin, getDashboardStats)
 const getAllServicesForAdmin = asyncHandler(async (req, res) => {
     const { 
         status, 

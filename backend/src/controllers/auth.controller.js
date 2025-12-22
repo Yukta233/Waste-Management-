@@ -41,13 +41,39 @@ const registerUser = asyncHandler(async (req, res) => {
         email,
         password,
         phoneNumber,
-        role = 'user',
+        role = 'user', // This comes from frontend
         expertise,
         companyName,
         address,
         bio,
         username
     } = req.body;
+
+    console.log('🔍 REGISTRATION DATA:', {
+        fullName,
+        email,
+        role, // What role is being sent?
+        phoneNumber,
+        companyName
+    });
+
+    // ✅ FIX 1: Ensure role is valid and not just 'user'
+    const validRoles = ['admin', 'expert', 'provider', 'user'];
+    
+    // Determine final role - prioritize what frontend sends
+    let finalRole = 'user';
+    
+    if (role && validRoles.includes(role)) {
+        finalRole = role;
+    } else if (companyName) {
+        // Auto-detect as provider if company name is provided
+        finalRole = 'provider';
+    } else if (expertise && Array.isArray(expertise) && expertise.length > 0) {
+        // Auto-detect as expert if expertise is provided
+        finalRole = 'expert';
+    }
+    
+    console.log('✅ Final determined role:', finalRole);
 
     // Validation
     if (!fullName || !email || !password) {
@@ -74,39 +100,26 @@ const registerUser = asyncHandler(async (req, res) => {
         }
     }
 
-    // Validate role
-    const validRoles = ['admin', 'expert', 'provider', 'user'];
-    if (!validRoles.includes(role)) {
-        throw new ApiError(400, "Invalid user role");
-    }
-
-    // Handle profile photo upload
+    // ✅ FIX 2: Handle profile photo upload with better error handling
     let profilePhotoUrl = "";
     if (req.file && req.file.path) {
-        console.log('🖼️ Attempting to upload profile photo...');
-        console.log('📁 File path:', req.file.path);
-        console.log('📁 File exists?', fs.existsSync(req.file.path));
+        console.log('🖼️ Uploading profile photo...');
         
         try {
             const uploadResult = await uploadOnCloudinary(req.file.path);
-            console.log('☁️ Cloudinary upload result:', uploadResult);
             
-            if (uploadResult) {
-                // Extract URL from Cloudinary response
-                profilePhotoUrl = uploadResult.secure_url || uploadResult.url;
-                console.log('✅ Photo uploaded successfully:', profilePhotoUrl);
+            if (uploadResult && uploadResult.secure_url) {
+                profilePhotoUrl = uploadResult.secure_url;
+                console.log('✅ Photo uploaded:', profilePhotoUrl);
             } else {
-                console.log('❌ Cloudinary upload returned null');
+                console.log('⚠️ Cloudinary upload returned no URL');
             }
         } catch (error) {
             console.error('❌ Error uploading profile photo:', error.message);
-            // Don't throw error, just continue without profile photo
+            // Continue without profile photo - don't fail registration
         } finally {
-            // Always clean up local file
             cleanupLocalFile(req.file.path);
         }
-    } else {
-        console.log('ℹ️ No profile photo provided');
     }
 
     // Parse expertise if provided
@@ -123,30 +136,41 @@ const registerUser = asyncHandler(async (req, res) => {
         try {
             addressObj = typeof address === 'string' ? JSON.parse(address) : address;
         } catch (error) {
-            console.log('⚠️ Invalid address format, using empty object');
+            console.log('⚠️ Invalid address format, using as string');
+            addressObj = { street: address };
         }
     }
 
-    // Set verification status based on role
+    // ✅ FIX 3: Set verification status based on FINAL role
     let isVerified = false;
     let verificationStatus = 'pending';
     
-    if (role === 'user') {
+    if (finalRole === 'user') {
         isVerified = true;
         verificationStatus = 'approved';
-    } else if (role === 'expert' || role === 'provider') {
+    } else if (finalRole === 'expert' || finalRole === 'provider') {
         isVerified = false;
         verificationStatus = 'pending';
+    } else if (finalRole === 'admin') {
+        // Admin should be verified by default
+        isVerified = true;
+        verificationStatus = 'approved';
     }
 
-    // Create user with all fields
+    console.log('📝 Creating user with:', {
+        role: finalRole,
+        isVerified,
+        verificationStatus
+    });
+
+    // Create user with determined role
     const user = await User.create({
         fullName,
         email: email.toLowerCase(),
         password,
         phoneNumber,
-        username: username || email.toLowerCase().split('@')[0], // Default username from email
-        role,
+        username: username || email.toLowerCase().split('@')[0],
+        role: finalRole, // ✅ Use the determined role
         expertise: expertiseArray,
         companyName,
         address: addressObj,
@@ -164,6 +188,13 @@ const registerUser = asyncHandler(async (req, res) => {
     const createdUser = await User.findById(user._id).select(
         "-password -refreshToken -verificationDocuments"
     );
+
+    console.log('🎉 User created successfully:', {
+        id: createdUser._id,
+        email: createdUser.email,
+        role: createdUser.role,
+        isVerified: createdUser.isVerified
+    });
 
     // Set cookies
     const options = {
@@ -184,7 +215,7 @@ const registerUser = asyncHandler(async (req, res) => {
                     accessToken,
                     refreshToken
                 },
-                "User registered successfully"
+                `User registered successfully as ${finalRole}`
             )
         );
 });

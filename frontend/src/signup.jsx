@@ -38,45 +38,85 @@ export default function CreateUserAccount() {
         if (!formData.fullName) return setError('Full Name is required');
         if (!formData.email || !formData.email.includes('@')) return setError('Valid Email is required');
         if (!formData.password) return setError('Password is required');
-        if (userType === 'Admin' && !formData.address) return setError('Address is required for Admin');
-        // no longer require expertise; address required for Composting Experts
-        if (userType === 'Composting Experts' && !formData.address) return setError('Address is required for Composting Experts');
 
-        const role = mapUserTypeToRole(userType);
-        // Build multipart form data to include profile image if provided
+        const role = mapUserTypeToRole(userType); // This should return 'provider' for waste management
+        
+        // ✅ FIX: Build FormData correctly
         const fd = new FormData();
         fd.append('fullName', formData.fullName);
         fd.append('email', formData.email);
         fd.append('password', formData.password);
-        fd.append('role', role);
+        fd.append('role', role); // ✅ CRITICAL: Send the role!
+        
         if (formData.phone) fd.append('phoneNumber', formData.phone);
-        // Admin no longer uses region; address is appended above when present
+        if (formData.address) {
+            // Send address as simple string or object
+            if (typeof formData.address === 'object') {
+                fd.append('address', JSON.stringify(formData.address));
+            } else {
+                fd.append('address', formData.address);
+            }
+        }
         if (formData.vehicle) fd.append('vehicle', formData.vehicle);
-        if (formData.address) fd.append('address', typeof formData.address === 'string' ? formData.address : JSON.stringify(formData.address));
-        // Attach profile picture file if present
+        
+        // ✅ FIX: For providers, send companyName
+        if (userType === 'Waste Management Service Providers' && formData.companyName) {
+            fd.append('companyName', formData.companyName);
+        }
+        
+        // ✅ FIX: For experts, send expertise
+        if (userType === 'Composting Experts' && formData.expertise) {
+            fd.append('expertise', Array.isArray(formData.expertise) 
+                ? formData.expertise.join(',') 
+                : formData.expertise);
+        }
+        
         if (formData.profilePhoto) fd.append('profilePhoto', formData.profilePhoto);
 
         setSubmitting(true);
         try {
             const res = await fetch(`${API_BASE}/auth/register`, {
                 method: 'POST',
-                // NOTE: let browser set Content-Type for multipart
                 credentials: 'include',
                 body: fd,
             });
+            
             const data = await res.json().catch(() => ({}));
+            
             if (!res.ok) {
-                throw new Error(data?.message || 'Registration failed');
+                console.error('Registration error:', data);
+                throw new Error(data?.message || `Registration failed (${res.status})`);
             }
-            // On success, optionally auto-login or redirect to login
-            alert('Account created successfully. Please sign in.');
+            
+            console.log('✅ Registration successful:', data);
+            
+            // Show success message with role
+            alert(`Account created successfully as ${role}! You can now sign in.`);
             window.location.href = '/login';
+            
         } catch (err) {
+            console.error('Registration failed:', err);
             setError(err.message || 'Registration failed');
         } finally {
             setSubmitting(false);
         }
     };
+
+    // ✅ Also update the renderFields for providers:
+    if (userType === 'Waste Management Service Providers') {
+        return (
+            <>
+                {/* Add company name field for providers */}
+                <AnimatedInput 
+                    label="Company Name" 
+                    name="companyName" 
+                    placeholder="Enter your company name"
+                    onChange={handleChange} 
+                />
+                <AnimatedInput label="Vehicle Details" name="vehicle" placeholder="Optional" onChange={handleChange} />
+            </>
+        );
+    }
 
     const renderFields = () => {
         if (userType === 'Admin') {

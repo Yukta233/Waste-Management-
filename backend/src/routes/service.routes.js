@@ -1,5 +1,4 @@
 import express from 'express';
-
 import {
     createService,
     getAllServices,
@@ -9,7 +8,7 @@ import {
     getServicesByProvider,
     updateServiceStatus
 } from '../controllers/service.controller.js';
-import { verifyJWT, requireAdmin } from '../middleware/auth.middleware.js';
+import { verifyJWT, requireAdmin, requireServiceProvider } from '../middleware/auth.middleware.js'; // ✅ ADD requireServiceProvider
 import { uploadServiceImages, handleUploadError } from '../middleware/upload.middleware.js';
 
 const router = express.Router();
@@ -26,6 +25,7 @@ router.use(verifyJWT); // All routes below require authentication
 // Service CRUD operations (Experts/Providers/Admins only)
 router.post(
     "/",
+    requireServiceProvider, // ✅ ADD THIS MIDDLEWARE
     uploadServiceImages,
     handleUploadError,
     createService
@@ -33,12 +33,13 @@ router.post(
 
 router.put(
     "/:serviceId",
+    requireServiceProvider, // ✅ ADD THIS MIDDLEWARE
     uploadServiceImages,
     handleUploadError,
     updateService
 );
 
-router.delete("/:serviceId", deleteService);
+router.delete("/:serviceId", requireServiceProvider, deleteService); // ✅ ADD THIS
 
 // ============ ADMIN ONLY ROUTES ============
 router.patch(
