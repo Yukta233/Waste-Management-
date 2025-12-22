@@ -229,7 +229,7 @@ export default function LoginPage() {
             </button>
 
             {/* Google */}
-            <button
+            {/* <button
               type="button"
               onClick={handleGoogleSignin}
               className="w-full flex items-center justify-center gap-3 rounded-xl
@@ -246,7 +246,7 @@ export default function LoginPage() {
                 className="h-5 w-5"
               />
               Sign in with Google
-            </button>
+            </button> */}
           </form>
 
           {/* Create Account */}

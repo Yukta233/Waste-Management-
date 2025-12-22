@@ -39,6 +39,10 @@ export default function UserDashboard() {
 
   const [bookings, setBookings] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentBooking, setPaymentBooking] = useState(null);
+  const [paymentForm, setPaymentForm] = useState({ method: 'card', name: '', cardNumber: '', expiry: '', cvv: '', upiId: '', wallet: 'paytm' });
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [profile, setProfile] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [editingProfile, setEditingProfile] = useState(false);
@@ -84,16 +88,57 @@ export default function UserDashboard() {
     return res.json();
   }
 
+  // Map UI category values to backend-supported categories
+  function normalizeCategory(cat) {
+    if (!cat) return '';
+    const key = String(cat).toLowerCase();
+    switch (key) {
+      case 'home-setup':
+      case 'home_setup':
+        return 'home-setup';
+      case 'waste-collection':
+      case 'waste_collection':
+      case 'collection':
+        return 'waste-collection';
+      case 'workshop':
+      case 'workshop-training':
+        return 'workshop-training';
+      case 'cleaning':
+      case 'others':
+        return 'others';
+      case 'kitchen_compost':
+      case 'kitchen-compost':
+        return 'kitchen-compost';
+      case 'garden_compost':
+      case 'garden-compost':
+        return 'garden-compost';
+      case 'community_compost':
+      case 'community-compost':
+        return 'community-compost';
+      case 'compost-product':
+      case 'sell_compost':
+        return 'compost-product';
+      case 'e-waste':
+      case 'ewaste':
+      case 'e waste':
+      case 'e-waste collection':
+      case 'e waste collection':
+      case 'electronics recycling':
+      case 'electronic-waste':
+        return 'ewaste-collection';
+      default:
+        return key;
+    }
+  }
+
   async function loadServices() {
     setLoading(true);
     try {
       const qs = new URLSearchParams();
-      if (serviceFilters.category) qs.set('category', serviceFilters.category);
+      if (serviceFilters.category) qs.set('category', normalizeCategory(serviceFilters.category));
       if (serviceFilters.city) qs.set('city', serviceFilters.city);
       if (serviceFilters.minPrice) qs.set('minPrice', serviceFilters.minPrice);
       if (serviceFilters.maxPrice) qs.set('maxPrice', serviceFilters.maxPrice);
-      if (serviceFilters.rating) qs.set('rating', serviceFilters.rating);
-      if (serviceFilters.available) qs.set('available', serviceFilters.available);
       const resp = await api(`/services?${qs.toString()}`);
       const arr = resp?.data?.services || resp?.data || resp?.services || resp || [];
       setServices(Array.isArray(arr) ? arr : []);
@@ -109,37 +154,18 @@ export default function UserDashboard() {
     } catch (err) { console.error('loadBookings', err); }
   }
 
-  async function initiatePayment(booking) {
-    try {
-      // Expect backend to return { paymentUrl } after creating a payment session
-      const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
-      const res = await fetch(base + `/bookings/${booking._id || booking.id}/payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          amount: booking.price || booking.service?.price || undefined,
-          currency: 'INR',
-          successUrl: window.location.origin + '/payment/success',
-          cancelUrl: window.location.origin + '/payment/cancel'
-        })
-      });
-      if (!res.ok) {
-        let msg = 'Failed to start payment';
-        try { const j = await res.json(); msg = j?.message || j?.error || msg; } catch {}
-        throw new Error(msg);
-      }
-      const data = await res.json();
-      const paymentUrl = data?.paymentUrl || data?.url || data?.redirectUrl;
-      if (!paymentUrl) throw new Error('Payment URL not provided');
-      window.location.href = paymentUrl;
-    } catch (err) {
-      console.error(err);
-      alert('Could not proceed to payment');
-    }
+  // Open in-app payment modal instead of redirecting
+  function initiatePayment(booking) {
+    const method = booking.paymentMethod || 'card';
+    setPaymentBooking(booking);
+    setPaymentForm(prev => ({
+      ...prev,
+      method,
+      name: user?.fullName || '',
+      cardNumber: '', expiry: '', cvv: '',
+      upiId: '', wallet: 'paytm'
+    }));
+    setShowPaymentModal(true);
   }
 
   async function loadProfile() {
@@ -321,8 +347,8 @@ export default function UserDashboard() {
                         <option value="">All categories</option>
                         <option value="home-setup">Home Setup</option>
                         <option value="waste-collection">Waste Collection</option>
-                        <option value="workshop">Workshop</option>
-                        <option value="cleaning">Cleaning</option>
+                        <option value="workshop-training">Workshop</option>
+                        <option value="others">Cleaning</option>
                       </select>
                       <input placeholder="City / Pincode" value={serviceFilters.city} onChange={e => setServiceFilters(prev => ({ ...prev, city: e.target.value }))} className="rounded border px-3 py-2" />
                       <input placeholder="Min" type="number" value={serviceFilters.minPrice} onChange={e => setServiceFilters(prev => ({ ...prev, minPrice: e.target.value }))} className="rounded border px-3 py-2 w-24" />
@@ -383,7 +409,7 @@ export default function UserDashboard() {
                         {b.status === 'upcoming' && (
                           <button className="px-3 py-1 rounded border text-red-600" onClick={() => alert('Cancel booking')}>Cancel</button>
                         )}
-                        {(b.status === 'confirmed' || b.status === 'accepted') && (
+                        {(b.status === 'confirmed' || b.status === 'accepted') && b.paymentStatus !== 'paid' && (
                           <button
                             className="px-4 py-2 rounded bg-emerald-600 text-white shadow hover:bg-emerald-700 transition"
                             onClick={() => initiatePayment(b)}
@@ -1113,6 +1139,148 @@ export default function UserDashboard() {
             </div>
           )}
         </main>
+      </div>
+
+      {showPaymentModal && (
+        <PaymentModal
+          booking={paymentBooking}
+          form={paymentForm}
+          setForm={setPaymentForm}
+          processing={paymentProcessing}
+          onClose={() => { if (!paymentProcessing) { setShowPaymentModal(false); setPaymentBooking(null); } }}
+          onPay={async () => {
+            // Basic front-end validation
+            const method = paymentForm.method || (paymentBooking?.paymentMethod) || 'card';
+            if (method === 'card') {
+              if (!paymentForm.name || !paymentForm.cardNumber || !paymentForm.expiry || !paymentForm.cvv) {
+                alert('Please fill all card details');
+                return;
+              }
+              if (!/^[0-9]{12,19}$/.test(paymentForm.cardNumber.replace(/\s+/g, ''))) {
+                alert('Invalid card number');
+                return;
+              }
+              if (!/^[0-9]{3,4}$/.test(paymentForm.cvv)) {
+                alert('Invalid CVV');
+                return;
+              }
+            } else if (method === 'upi') {
+              if (!paymentForm.upiId) {
+                alert('Please enter a valid UPI ID');
+                return;
+              }
+            } else if (method === 'cash') {
+              // no additional details
+            } else if (method === 'wallet') {
+              if (!paymentForm.wallet) {
+                alert('Please select a wallet');
+                return;
+              }
+            }
+
+            try {
+              setPaymentProcessing(true);
+              // Simulate payment delay
+              await new Promise(res => setTimeout(res, 1500));
+              alert('Your payment has been made successfully.');
+              setBookings(prev => prev.map(b => ((b._id || b.id) === (paymentBooking?._id || paymentBooking?.id) ? { ...b, paymentStatus: 'paid' } : b)));
+              setShowPaymentModal(false);
+              setPaymentBooking(null);
+            } finally {
+              setPaymentProcessing(false);
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PaymentModal({ booking, form, setForm, onClose, onPay, processing }) {
+  if (!booking) return null;
+  const amount = booking.totalAmount || booking.price || booking.service?.price || 0;
+  const method = (form.method || booking.paymentMethod || 'card').toLowerCase();
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white rounded-xl shadow-lg m-4" onClick={e => e.stopPropagation()}>
+        <div className="px-4 py-3 border-b flex items-center justify-between">
+          <div>
+            <div className="font-semibold text-gray-800">Complete Payment</div>
+            <div className="text-xs text-gray-500">{booking.service?.title || 'Service'} • Amount: ₹{amount}</div>
+          </div>
+          <button className="text-xl text-black" onClick={onClose} disabled={processing}>×</button>
+        </div>
+        <div className="p-4">
+          <div className="mb-3">
+            <label className="block text-sm text-gray-700 mb-1">Payment method</label>
+            <select
+              className="w-full rounded-lg border px-3 py-2"
+              value={form.method}
+              onChange={e => setForm(prev => ({ ...prev, method: e.target.value }))}
+            >
+              <option value="card">Card (Credit/Debit)</option>
+              <option value="upi">UPI</option>
+              <option value="wallet">Wallet (Paytm / PhonePe / GPay)</option>
+              <option value="cash">Cash on service</option>
+            </select>
+          </div>
+
+          {method === 'card' && (
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-sm text-gray-700">Name on card</span>
+                <input className="mt-1 w-full rounded-lg border px-3 py-2" value={form.name} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} />
+              </label>
+              <label className="block">
+                <span className="text-sm text-gray-700">Card number</span>
+                <input className="mt-1 w-full rounded-lg border px-3 py-2" placeholder="1234 5678 9012 3456" value={form.cardNumber} onChange={e => setForm(prev => ({ ...prev, cardNumber: e.target.value }))} />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-sm text-gray-700">Expiry (MM/YY)</span>
+                  <input className="mt-1 w-full rounded-lg border px-3 py-2" placeholder="MM/YY" value={form.expiry} onChange={e => setForm(prev => ({ ...prev, expiry: e.target.value }))} />
+                </label>
+                <label className="block">
+                  <span className="text-sm text-gray-700">CVV</span>
+                  <input className="mt-1 w-full rounded-lg border px-3 py-2" placeholder="123" value={form.cvv} onChange={e => setForm(prev => ({ ...prev, cvv: e.target.value }))} />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {method === 'upi' && (
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-sm text-gray-700">UPI ID</span>
+                <input className="mt-1 w-full rounded-lg border px-3 py-2" placeholder="yourname@bank" value={form.upiId} onChange={e => setForm(prev => ({ ...prev, upiId: e.target.value }))} />
+              </label>
+              <div className="text-xs text-gray-500">Supported: Google Pay, PhonePe, BHIM, Paytm, etc.</div>
+            </div>
+          )}
+
+          {method === 'wallet' && (
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-sm text-gray-700">Select Wallet</span>
+                <select className="mt-1 w-full rounded-lg border px-3 py-2" value={form.wallet} onChange={e => setForm(prev => ({ ...prev, wallet: e.target.value }))}>
+                  <option value="paytm">Paytm</option>
+                  <option value="phonepe">PhonePe</option>
+                  <option value="gpay">Google Pay</option>
+                </select>
+              </label>
+            </div>
+          )}
+
+          {method === 'cash' && (
+            <div className="text-sm text-gray-700">You chose Cash on service. Please pay the provider directly upon service completion. Amount: ₹{amount}</div>
+          )}
+
+          <div className="mt-5 flex justify-end gap-2">
+            <button className="px-4 py-2 rounded border" onClick={onClose} disabled={processing}>Cancel</button>
+            <button className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-60" disabled={processing} onClick={onPay}>{processing ? 'Processing…' : `Pay ₹${amount}`}</button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -102,22 +102,7 @@ export default function CreateUserAccount() {
         }
     };
 
-    // ✅ Also update the renderFields for providers:
-    if (userType === 'Waste Management Service Providers') {
-        return (
-            <>
-                {/* Add company name field for providers */}
-                <AnimatedInput 
-                    label="Company Name" 
-                    name="companyName" 
-                    placeholder="Enter your company name"
-                    onChange={handleChange} 
-                />
-                <AnimatedInput label="Vehicle Details" name="vehicle" placeholder="Optional" onChange={handleChange} />
-            </>
-        );
-    }
-
+    
     const renderFields = () => {
         if (userType === 'Admin') {
             return (
@@ -161,7 +146,7 @@ export default function CreateUserAccount() {
                 return (
                     <>
                         {commonFields}
-                        {/* Removed Services Providing list per request */}
+                        <AnimatedInput label="Company Name" name="companyName" placeholder="Enter your company name" onChange={handleChange} />
                         <AnimatedInput label="Vehicle Details" name="vehicle" placeholder="Optional" onChange={handleChange} />
                     </>
                 );
@@ -241,6 +226,7 @@ function AnimatedInput({ label, name, type = 'text', placeholder = '', onChange 
         address: FaHome,
                         region: FaMapMarkerAlt,
         expertise: FaCog,
+        companyName: FaUserTag,
                 vehicle: FaTruck,
             };
     const Icon = iconMap[name];

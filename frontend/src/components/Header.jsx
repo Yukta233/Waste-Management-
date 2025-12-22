@@ -136,7 +136,7 @@ export default function Header() {
                       className="absolute top-16 right-32 bg-white border rounded-xl shadow w-64 p-4"
                     >
                       <p className="text-xs text-gray-500">Signed in as</p>
-                      <p className="font-semibold truncate">
+                      <p className="font-semibold truncate text-gray-600">
                         {currentUser.email}
                       </p>
 

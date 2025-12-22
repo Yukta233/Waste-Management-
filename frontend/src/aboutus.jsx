@@ -285,9 +285,12 @@ function AboutUs() {
                     <Link to="/login" className="bg-[#16a34a] text-white px-10 py-4 rounded-2xl font-black hover:bg-green-500 transition-all flex items-center justify-center gap-2">
                         Get Started <ArrowRight size={20} />
                     </Link>
-                    <button className="bg-white/10 text-white border border-white/20 px-10 py-4 rounded-2xl font-bold hover:bg-white/20 transition">
-                        Browse Experts
-                    </button>
+                  <Link to="/profile">
+    <button className="bg-white/10 text-white border border-white/20 px-10 py-4 rounded-2xl font-bold hover:bg-white/20 transition">
+        Browse Experts
+    </button>
+</Link>
+
                 </div>
             </div>
         </div>

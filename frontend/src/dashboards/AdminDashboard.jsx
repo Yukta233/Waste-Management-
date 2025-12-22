@@ -139,10 +139,15 @@ export default function AdminDashboard() {
     try {
       const body = { status };
       if (rejectionReason) body.rejectionReason = rejectionReason;
-      await api(`/services/${serviceId}/status`, { method: 'PATCH', body });
-      await loadServices();
-      await loadStats();
-      alert('Service updated');
+      const resp = await api(`/services/${serviceId}/status`, { method: 'PATCH', body });
+
+      // Optimistically update local state so UI reflects new status immediately
+      const updated = resp?.data || resp?.service || resp;
+      setServices(prev => prev.map(s => s._id === serviceId ? { ...s, ...(updated || { status }), status: updated?.status || status } : s));
+
+      // Refresh lists/stats to stay in sync with backend (but don't block UI)
+      loadServices();
+      loadStats();
     } catch (err) {
       console.error('Failed to update service status', err);
       alert('Failed to update service: ' + (err.message || ''));
@@ -299,7 +304,15 @@ export default function AdminDashboard() {
 
           {activeTab === 'approval' && (
             <div className="space-y-4">
-              <SectionApproval services={services} loading={loading} error={error} onApprove={(id) => updateServiceStatus(id, 'active')} onReject={(id, reason) => updateServiceStatus(id, 'rejected', reason)} refresh={loadServices} onOpen={(s) => setSelectedService(s)} />
+              <SectionApproval
+                services={services.filter(s => s.status === 'pending')}
+                loading={loading}
+                error={error}
+                onApprove={(id) => updateServiceStatus(id, 'active')}
+                onReject={(id, reason) => updateServiceStatus(id, 'rejected', reason)}
+                refresh={loadServices}
+                onOpen={(s) => setSelectedService(s)}
+              />
             </div>
           )}
 
@@ -329,10 +342,19 @@ export default function AdminDashboard() {
                           <div className="font-medium text-black">{s.title}</div>
                           <div className="text-xs text-gray-500 ">{s.provider?.fullName || s.provider} • {s.category} • ₹{s.price}</div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
                           <button type="button" className="px-3 py-1 rounded border text-green-500" onClick={() => { setSelectedService(s); }}>Open</button>
-                          <button type="button" className="px-3 py-1 rounded bg-emerald-600 text-white" onClick={() => updateServiceStatus(s._id, 'active')}>Approve</button>
-                          <button type="button" className="px-3 py-1 rounded border text-red-600" onClick={() => updateServiceStatus(s._id, 'rejected')}>Reject</button>
+                          {s.status === 'pending' && (
+                            <>
+                              <button type="button" className="px-3 py-1 rounded bg-emerald-600 text-white" onClick={() => updateServiceStatus(s._id, 'active')}>Approve</button>
+                              <button type="button" className="px-3 py-1 rounded border text-red-600" onClick={() => updateServiceStatus(s._id, 'rejected')}>Reject</button>
+                            </>
+                          )}
+                          {s.status !== 'pending' && (
+                            <span className={`px-2 py-0.5 text-xs rounded-full ${s.status === 'active' ? 'bg-green-100 text-green-800' : s.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
+                              {s.status}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -514,12 +536,12 @@ function SectionApproval({ services, loading, error, onApprove, onReject, refres
                   <div className="mt-2 text-gray-700">{s.description}</div>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
                     <button type="button" className="px-3 py-1 rounded border text-green-500" onClick={() => { if (typeof onOpen === 'function') onOpen(s); }}>Open</button>
                     <button type="button" className="px-3 py-1 rounded bg-emerald-600 text-white" onClick={() => onApprove(s._id)}>Approve</button>
                     <button type="button" className="px-3 py-1 rounded border text-red-600" onClick={() => {
                       const reason = prompt('Rejection reason (optional):');
-                      onReject(s._id, 'rejected', reason || '');
+                      onReject(s._id, reason || '');
                     }}>Reject</button>
                   </div>
                 </div>
@@ -585,7 +607,7 @@ function ServiceDetailModal({ service, onClose, onApprove, onReject }) {
               <button type="button" className="px-3 py-2 rounded bg-emerald-600 text-white" onClick={() => { if (onApprove) onApprove(service._id, 'active'); }}>Approve</button>
               <button type="button" className="px-3 py-2 rounded border text-red-600" onClick={() => {
                 const reason = prompt('Rejection reason (optional):');
-                if (onReject) onReject(service._id, 'rejected', reason || '');
+                if (onReject) onReject(service._id, reason || '');
               }}>Reject</button>
             </div>
           </div>
