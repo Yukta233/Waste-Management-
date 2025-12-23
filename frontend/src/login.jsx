@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FaLeaf, FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowLeft } from 'react-icons/fa';
-import logo from './assets/swachhsetu.png';
+import logo from './assets/SwachhSetu.png';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
