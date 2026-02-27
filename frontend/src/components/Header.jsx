@@ -3,7 +3,7 @@ import { FaUser, FaBars, FaTimes } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import NotificationBell from "./NotificationBell";
-import logo from "../assets/swachhsetu.png";
+import logo from "../assets/SwachhSetu.png";
 
 export default function Header() {
   const [openUserMenu, setOpenUserMenu] = useState(false);

@@ -15,7 +15,7 @@
     "@tabler/icons-react": "^3.36.0",
     "axios": "^1.13.2",
     "clsx": "^2.1.1",
-    "esbuild": "^0.27.2",
+    "esbuild": "^0.27.3",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.562.0",
     "react": "^19.2.1",
